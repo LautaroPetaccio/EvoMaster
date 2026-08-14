@@ -9,7 +9,7 @@ import org.evomaster.core.problem.rest.data.RestPath
 import org.evomaster.core.problem.rest.param.BodyParam
 import org.evomaster.core.problem.rest.schema.OpenApiAccess
 import org.evomaster.core.problem.rest.schema.RestSchema
-import org.evomaster.core.problem.rest.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocation
 import org.evomaster.core.search.gene.BooleanGene
 import org.evomaster.core.search.gene.ObjectGene
 import org.evomaster.core.search.gene.collection.EnumGene

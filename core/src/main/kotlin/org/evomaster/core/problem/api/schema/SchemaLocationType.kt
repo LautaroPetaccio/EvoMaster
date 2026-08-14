@@ -1,4 +1,4 @@
-package org.evomaster.core.problem.rest.schema
+package org.evomaster.core.problem.api.schema
 
 enum class SchemaLocationType {
     REMOTE, LOCAL, MEMORY, RESOURCE

@@ -1,5 +1,6 @@
 package org.evomaster.core.problem.rest.schema
 
+import org.evomaster.core.problem.api.schema.SchemaRefUtils
 
 import io.swagger.v3.oas.models.Operation
 import io.swagger.v3.oas.models.PathItem
@@ -73,59 +74,6 @@ object SchemaUtils {
      */
 
 
-    fun isLocalRef(sref: String) = sref.startsWith("#")
-
-    private fun extractLocation(sref: String, messages: MutableList<String>) : String?{
-        if(!sref.contains("#")){
-            messages.add("Not a valid \$ref, as it contains no #: $sref")
-            return null
-        }
-        return sref.substring(0, sref.indexOf("#"))
-    }
-
-
-    fun computeLocation(ref: String, currentSource: SchemaLocation, messages: MutableList<String>) : String?{
-
-        val rawLocation = extractLocation(ref, messages)
-            ?: return null
-
-        if(rawLocation.startsWith("http:",true) || rawLocation.startsWith("https:",true)){
-            //location is absolute, so no need to do anything
-            return rawLocation
-        }
-
-        //TODO does it make any sense to have file:// here???
-
-        if(currentSource.type == SchemaLocationType.MEMORY){
-            throw IllegalArgumentException("Can't handle relative location for memory files: $rawLocation")
-        }
-
-        val csl = currentSource.location
-
-        if(rawLocation.startsWith("//")){
-            //as per specs, use same protocol as source
-            val protocol = csl.substring(0, csl.indexOf(":"))
-            if(protocol.isBlank()){
-                log.warn("No protocol can be inferred for $rawLocation from $csl")
-            }
-            return "$protocol:$rawLocation"
-        }
-
-        //if arrive here, it is a relative path
-        val delimiter = if(csl.endsWith("/")) "" else "/"
-        val parentFolder = "../" // this is based to what discussed in the specs
-
-        val location = "$csl$delimiter$parentFolder$rawLocation"
-
-        //FIXME should not usi URI
-        return try{
-            URI(location).normalize().toString()
-        } catch (e: Exception){
-            location
-        }
-    }
-
-
     private fun extractReferenceName(reference: String, messages: MutableList<String>): String {
         try {
             /*
@@ -172,10 +120,10 @@ object SchemaUtils {
                      -> T?
     ) : T? {
         val name = extractReferenceName(reference,messages)
-        if(isLocalRef(reference)){
+        if(SchemaRefUtils.isLocalRef(reference)){
             return lambda(current, name, messages, reference)
         } else {
-            val location = computeLocation(reference, current.sourceLocation, messages)
+            val location = SchemaRefUtils.computeLocation(reference, current.sourceLocation, messages)
                 ?: return null
             val other = schema.getSpec(location)
             if(other == null){

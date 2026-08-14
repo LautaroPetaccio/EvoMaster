@@ -1,5 +1,7 @@
 package org.evomaster.core.problem.rest.schema
 
+import org.evomaster.core.problem.api.schema.SchemaLocation
+
 import org.evomaster.core.problem.rest.StatusGroup
 import org.evomaster.core.problem.rest.data.HttpVerb
 import org.junit.jupiter.api.Assertions.assertEquals

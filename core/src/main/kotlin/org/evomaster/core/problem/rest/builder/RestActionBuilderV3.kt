@@ -30,7 +30,7 @@ import org.evomaster.core.problem.rest.data.RestPath
 import org.evomaster.core.problem.rest.link.RestLink
 import org.evomaster.core.problem.rest.param.*
 import org.evomaster.core.problem.rest.schema.RestSchema
-import org.evomaster.core.problem.rest.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocation
 import org.evomaster.core.problem.rest.schema.SchemaOpenAPI
 import org.evomaster.core.problem.rest.schema.SchemaUtils
 import org.evomaster.core.problem.util.ActionBuilderUtil

@@ -1,7 +1,7 @@
 package org.evomaster.core.problem.asyncapi.schema
 
-import org.evomaster.core.problem.rest.schema.SchemaLocation
-import org.evomaster.core.problem.rest.schema.SchemaLocationType
+import org.evomaster.core.problem.api.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocationType
 import org.evomaster.core.remote.HttpClientFactory
 import org.evomaster.core.remote.SutProblemException
 import org.slf4j.LoggerFactory

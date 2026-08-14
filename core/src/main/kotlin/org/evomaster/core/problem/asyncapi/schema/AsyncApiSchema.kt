@@ -1,7 +1,7 @@
 package org.evomaster.core.problem.asyncapi.schema
 
 import com.fasterxml.jackson.databind.JsonNode
-import org.evomaster.core.problem.rest.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocation
 
 /**
  * A parsed AsyncAPI 3.x document, normalised so that the rest of EvoMaster never has to walk

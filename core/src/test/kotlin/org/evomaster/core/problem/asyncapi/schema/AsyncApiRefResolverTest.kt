@@ -1,5 +1,7 @@
 package org.evomaster.core.problem.asyncapi.schema
 
+import org.evomaster.core.problem.api.schema.SchemaYamlUtils
+
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -8,7 +10,7 @@ import org.junit.jupiter.api.Test
  */
 class AsyncApiRefResolverTest {
 
-    private fun document() = AsyncApiParser.readTree(
+    private fun document() = SchemaYamlUtils.readTree(
         """
         asyncapi: 3.0.0
         components:

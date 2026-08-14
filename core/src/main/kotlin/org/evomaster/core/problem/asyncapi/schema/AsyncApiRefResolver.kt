@@ -1,7 +1,7 @@
 package org.evomaster.core.problem.asyncapi.schema
 
 import com.fasterxml.jackson.databind.JsonNode
-import org.evomaster.core.problem.rest.schema.SchemaUtils
+import org.evomaster.core.problem.api.schema.SchemaRefUtils
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -25,7 +25,7 @@ object AsyncApiRefResolver {
 
     const val SCHEMA_PREFIX = "#/components/schemas/"
 
-    fun isLocal(ref: String) = SchemaUtils.isLocalRef(ref)
+    fun isLocal(ref: String) = SchemaRefUtils.isLocalRef(ref)
 
     /**
      * Follow a local `$ref` such as `#/components/messages/foo` inside [root].

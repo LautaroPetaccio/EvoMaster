@@ -1,4 +1,4 @@
-package org.evomaster.core.problem.rest.schema
+package org.evomaster.core.problem.api.schema
 
 data class SchemaLocation(
     val location: String,

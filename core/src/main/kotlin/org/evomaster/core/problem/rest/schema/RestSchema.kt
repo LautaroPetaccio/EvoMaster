@@ -1,11 +1,11 @@
 package org.evomaster.core.problem.rest.schema
 
+import org.evomaster.core.problem.api.schema.SchemaLocationType
+import org.evomaster.core.problem.api.schema.SchemaRefUtils
+import org.evomaster.core.problem.api.schema.SchemaYamlUtils
+
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactoryBuilder
 import org.evomaster.core.remote.SutProblemException
-import org.yaml.snakeyaml.LoaderOptions
 
 
 /**
@@ -64,25 +64,15 @@ class RestSchema(
 
         //https://swagger.io/docs/specification/v3_0/using-ref/
 
-        // snakeyaml has default limits on size, which are very low
-        val yaml = YAMLFactoryBuilder(YAMLFactory())
-            .loaderOptions(LoaderOptions().apply {
-                codePointLimit = 50 * 1024 * 1024 // 50MB
-                maxAliasesForCollections = 1000
-                nestingDepthLimit = 100
-            })
-            .build()
-
-        val mapper = ObjectMapper(yaml)
-        val tree = mapper.readTree(schema.schemaRaw)
+        val tree = SchemaYamlUtils.readTree(schema.schemaRaw)
         val refs = findAllSRef(tree)
 
         refs.forEach {
-            if(SchemaUtils.isLocalRef(it)){
+            if(SchemaRefUtils.isLocalRef(it)){
                 return@forEach
             }
 
-            val location = SchemaUtils.computeLocation(it, schema.sourceLocation, mutableListOf())
+            val location = SchemaRefUtils.computeLocation(it, schema.sourceLocation, mutableListOf())
                 ?: return@forEach
 
             if(otherSpecs.containsKey(location) || failedRetrievedSpecLocations.contains(location)){

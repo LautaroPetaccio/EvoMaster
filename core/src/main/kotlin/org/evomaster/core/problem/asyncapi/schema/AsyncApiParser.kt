@@ -1,13 +1,10 @@
 package org.evomaster.core.problem.asyncapi.schema
 
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.JsonNodeFactory
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactoryBuilder
-import org.evomaster.core.problem.rest.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaYamlUtils
 import org.evomaster.core.remote.SutProblemException
-import org.yaml.snakeyaml.LoaderOptions
 
 /**
  * Turns the text of an AsyncAPI 3.x document into an [AsyncApiSchema].
@@ -40,7 +37,7 @@ object AsyncApiParser {
     fun parse(schemaText: String, location: SchemaLocation): AsyncApiSchema {
 
         val root = try {
-            readTree(schemaText)
+            SchemaYamlUtils.readTree(schemaText)
         } catch (e: Exception) {
             throw SutProblemException("Failed to parse the AsyncAPI document: ${e.message}")
         }
@@ -87,25 +84,6 @@ object AsyncApiParser {
             componentSchemas = componentSchemas,
             warnings = warnings
         )
-    }
-
-    /**
-     * Read YAML or JSON. One reader does both, as JSON is valid YAML.
-     *
-     * snakeyaml's out-of-the-box limits are far too low for real documents, so they are raised
-     * here in the same way as is done when reading OpenAPI.
-     */
-    fun readTree(text: String): JsonNode {
-
-        val yaml = YAMLFactoryBuilder(YAMLFactory())
-            .loaderOptions(LoaderOptions().apply {
-                codePointLimit = 50 * 1024 * 1024 // 50MB
-                maxAliasesForCollections = 1000
-                nestingDepthLimit = 100
-            })
-            .build()
-
-        return ObjectMapper(yaml).readTree(text)
     }
 
     // ------------------------------------------------------------------ messages

@@ -29,7 +29,7 @@ import org.evomaster.core.problem.rest.param.HeaderParam
 import org.evomaster.core.problem.rest.param.QueryParam
 import org.evomaster.core.problem.rest.schema.OpenApiAccess
 import org.evomaster.core.problem.rest.schema.RestSchema
-import org.evomaster.core.problem.rest.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocation
 import org.evomaster.core.problem.rest.schema.SchemaOpenAPI
 import org.evomaster.core.problem.rest.schema.SchemaUtils
 import org.evomaster.core.problem.rest.seeding.Parser

@@ -1,5 +1,8 @@
 package org.evomaster.core.problem.rest.schema
 
+import org.evomaster.core.problem.api.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocationType
+
 import io.swagger.v3.parser.OpenAPIV3Parser
 import io.swagger.v3.parser.core.models.SwaggerParseResult
 import org.evomaster.core.AnsiColor

@@ -2,7 +2,7 @@ package org.evomaster.core.problem.rest.builder
 
 import org.evomaster.core.problem.rest.schema.OpenApiAccess
 import org.evomaster.core.problem.rest.schema.RestSchema
-import org.evomaster.core.problem.rest.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocation
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 

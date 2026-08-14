@@ -5,7 +5,7 @@ import org.evomaster.client.java.controller.api.dto.SutInfoDto
 import org.evomaster.core.EMConfig
 import org.evomaster.core.problem.rest.data.Endpoint
 import org.evomaster.core.problem.rest.schema.RestSchema
-import org.evomaster.core.problem.rest.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocation
 import org.evomaster.core.problem.rest.schema.SchemaOpenAPI
 
 object EndpointFilter {

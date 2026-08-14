@@ -5,7 +5,7 @@ import io.mockk.mockk
 import io.swagger.v3.oas.models.OpenAPI
 import org.evomaster.core.EMConfig
 import org.evomaster.core.problem.rest.schema.RestSchema
-import org.evomaster.core.problem.rest.schema.SchemaLocation
+import org.evomaster.core.problem.api.schema.SchemaLocation
 import org.evomaster.core.problem.rest.schema.SchemaOpenAPI
 import org.evomaster.core.problem.rest.service.sampler.AbstractRestSampler
 import org.junit.jupiter.api.Assertions.assertEquals
