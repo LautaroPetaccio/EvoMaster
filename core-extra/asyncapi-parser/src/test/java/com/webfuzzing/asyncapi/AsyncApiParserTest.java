@@ -741,6 +741,37 @@ public class AsyncApiParserTest {
     }
 
     @Test
+    public void testPointerDeeperThanAnImportedSchemaKeepsItsTail() {
+
+        AsyncApiDocument document = load("/asyncapi/artificial/external-main.yaml");
+
+        /*
+            Only the component key is renamed. Everything past it describes a way into the
+            imported schema and has to survive, or the reference would name the primary
+            document's own 'Order' -- a different schema that happens to share the name.
+         */
+        String ref = document.getMessages().get("deepPointer").getPayload().get("$ref").asText();
+
+        assertTrue(ref.matches("^#/components/schemas/_ext_[0-9a-f]{8}_Order/properties/item$"), ref);
+    }
+
+    @Test
+    public void testDeepLocalPointerInsideAnImportedDocumentIsRewritten() {
+
+        AsyncApiDocument document = load("/asyncapi/artificial/external-main.yaml");
+
+        //the imported document wrote '#/components/schemas/Order/...' meaning its own Order
+        String ref = document.getMessages().get("importedDeep").getPayload().get("$ref").asText();
+
+        assertTrue(ref.matches("^#/components/schemas/_ext_[0-9a-f]{8}_Order/properties/id$"), ref);
+
+        //and what it now names is the imported copy, which has the fields the other document declared
+        String key = ref.substring("#/components/schemas/".length(), ref.indexOf("/properties/"));
+        assertTrue(document.getComponentSchemas().get(key).get("properties").has("id"));
+        assertFalse(document.getComponentSchemas().get(key).get("properties").has("localOnly"));
+    }
+
+    @Test
     public void testReferenceIntoANonComponentPartOfAnotherDocumentIsRejected() {
 
         AsyncApiDocument document = load("/asyncapi/artificial/external-deep.yaml");

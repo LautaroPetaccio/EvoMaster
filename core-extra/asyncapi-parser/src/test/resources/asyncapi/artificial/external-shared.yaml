@@ -19,6 +19,13 @@ components:
       payload:
         $ref: '#/components/schemas/Order'
 
+    # a local pointer that goes deeper than the schema it names. It has to end up naming *this*
+    # document's Order, not the one of the same name in the document importing it
+    DeepAck:
+      name: DeepAck
+      payload:
+        $ref: '#/components/schemas/Order/properties/id'
+
   schemas:
     Order:
       type: object
