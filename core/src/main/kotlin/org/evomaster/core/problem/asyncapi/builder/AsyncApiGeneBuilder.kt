@@ -85,26 +85,88 @@ object AsyncApiGeneBuilder {
             return null
         }
 
+        //a reference that is the whole declaration, so that following it loses nothing
+        val ref = AsyncApiRefResolver.refOf(declared)?.takeIf { isWholeSchemaRef(declared) }
+
         /*
             A payload that is just a reference to a declared schema is built under that schema's
             own name, which keeps the gene named after what the document calls it. Anything else
             is added to the map under a name of our own.
+
+            Note `refKey` rather than `schemaKeyOf`: only a pointer at the schema itself may be
+            shortcut this way. One that goes deeper names a part of it, and building the whole
+            schema instead would be a different message altogether.
          */
-        val referenced = AsyncApiRefResolver.refOf(declared)
-            ?.let { AsyncApiRefResolver.schemaKeyOf(it) }
-            ?.takeIf { schema.componentSchemas.containsKey(it) && isWholeSchemaRef(declared) }
+        val referenced = ref
+            ?.let { AsyncApiRefResolver.refKey(it, AsyncApiRefResolver.SCHEMA_PREFIX) }
+            ?.takeIf { schema.componentSchemas.containsKey(it) }
 
         val name = referenced ?: (INLINE_PREFIX + inlineName)
 
         val schemas = JsonNodeFactory.instance.objectNode()
         schema.componentSchemas.forEach { (key, node) -> schemas.set<JsonNode>(key, usable(node)) }
         if (referenced == null) {
-            schemas.set<JsonNode>(name, usable(declared))
+            schemas.set<JsonNode>(name, usable(pointedAt(ref, declared, schema)))
         }
 
         //the format createGeneForDTO expects: the name of the wanted schema, then all of them
         return RestActionBuilderV3.createGeneForDTO(name, "\"$name\":$schemas", options)
     }
+
+    /**
+     * What a payload stands for when its reference goes deeper than the schema it names.
+     *
+     * `#/components/schemas/Order/properties/item` is a legitimate way of saying "the shape of
+     * that one property", and the parser lets it through: what it checks is that `Order` is
+     * present. It cannot be left to be resolved further down, though. The OpenAPI machinery the
+     * genes are built with follows a reference to a whole schema and nothing else, and answers
+     * a deeper one with an empty object -- which would build a message with no fields at all,
+     * and say nothing about it.
+     *
+     * So the pointer is walked here, against the very component schemas the parser guaranteed
+     * are reachable. Anything else is returned untouched.
+     */
+    private fun pointedAt(ref: String?, declared: JsonNode, schema: AsyncApiDocument): JsonNode {
+
+        if (ref == null) {
+            return declared
+        }
+
+        val tail = ref.removePrefix(AsyncApiRefResolver.SCHEMA_PREFIX).substringAfter('/', "")
+
+        if (tail.isEmpty()) {
+            //the reference names a whole schema, which needs no walking
+            return declared
+        }
+
+        val target = AsyncApiRefResolver.schemaKeyOf(ref)?.let { schema.componentSchemas[it] }
+            ?: return declared
+
+        var current = target
+
+        for (segment in tail.split("/")) {
+            current = current.get(decodePointerSegment(segment))
+                ?: throw IllegalArgumentException(
+                    "The schema refers to '$ref', but '$segment' is not there, so there is no" +
+                            " shape to build from"
+                )
+        }
+
+        if (!current.isObject) {
+            throw IllegalArgumentException(
+                "The schema refers to '$ref', which is not a JSON Schema object, so there is no" +
+                        " shape to build from"
+            )
+        }
+
+        return current
+    }
+
+    /**
+     * JSON Pointer escaping: "~1" is a "/" and "~0" is a "~", undone in that order.
+     */
+    private fun decodePointerSegment(segment: String) =
+        segment.replace("~1", "/").replace("~0", "~")
 
     /**
      * Whether the node is nothing but a reference, so that following it loses nothing.
@@ -137,6 +199,11 @@ object AsyncApiGeneBuilder {
      *   always come back as two. Equal bounds pin the value with no such surprise.
      * - **booleans** are left alone. There is no enum handling for them and no bounds to set;
      *   a two-valued field is guessed half the time anyway.
+     *
+     * Only `const` in the position of a keyword is rewritten. The same word can appear as a
+     * field name a document declares, or inside a `default` that happens to have a member of
+     * that name, and rewriting either would corrupt the document rather than help it -- hence
+     * [DATA_KEYWORDS] and [SCHEMA_MAPS].
      */
     private fun rewriteConst(node: JsonNode): JsonNode {
 
@@ -172,8 +239,32 @@ object AsyncApiGeneBuilder {
             }
         }
 
-        obj.fields().forEach { (_, value) -> rewriteConst(value) }
+        obj.fields().forEach { (key, value) ->
+            when (key) {
+                /*
+                    These map names a document chose to the schemas describing them, so their
+                    keys are never keywords: whatever is under them is a schema and is walked,
+                    but this level itself is not read as one.
+                 */
+                in SCHEMA_MAPS -> value.fields().forEach { (_, member) -> rewriteConst(member) }
+                //literal data, where a member named "const" is a value and not a keyword
+                in DATA_KEYWORDS -> Unit
+                else -> rewriteConst(value)
+            }
+        }
 
         return obj
     }
+
+    /**
+     * The keywords whose value is literal data rather than a schema, so nothing inside them is
+     * a keyword either.
+     */
+    private val DATA_KEYWORDS = setOf("const", "default", "enum", "example", "examples")
+
+    /**
+     * The keywords whose value maps arbitrary names to schemas. Their keys come from the
+     * document, so a field a service happens to call "const" or "default" must still be walked.
+     */
+    private val SCHEMA_MAPS = setOf("properties", "patternProperties", "definitions", "\$defs")
 }
