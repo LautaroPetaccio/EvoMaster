@@ -1046,6 +1046,34 @@ public class AsyncApiParserTest {
     }
 
     @Test
+    public void testDeclaredSecuritySchemeWithNoTypeIsReported() {
+
+        /*
+            A scheme written inline with no 'type' was already reported; one declared under
+            components was dropped in silence. A server referring to it then failed for what
+            looked like a second, unrelated reason.
+         */
+        AsyncApiDocument document = parse(
+                "asyncapi: 3.0.0\n"
+                        + "info:\n"
+                        + "  title: Scheme with no type\n"
+                        + "  version: 1.0.0\n"
+                        + "servers:\n"
+                        + "  dev:\n"
+                        + "    host: dev:5672\n"
+                        + "    protocol: amqp\n"
+                        + "    security:\n"
+                        + "      - $ref: '#/components/securitySchemes/halfWritten'\n"
+                        + "components:\n"
+                        + "  securitySchemes:\n"
+                        + "    halfWritten:\n"
+                        + "      description: someone meant to finish this\n");
+
+        assertFalse(document.getSecuritySchemes().containsKey("halfWritten"));
+        assertTrue(warns(document, "halfWritten", "no 'type'"), document.getWarnings().toString());
+    }
+
+    @Test
     public void testServerMissingWhatItNeedsIsReported() {
 
         AsyncApiDocument document = parse(

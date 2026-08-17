@@ -121,7 +121,12 @@ public class AsyncApiParser {
         Map<String, AsyncApiSecurityScheme> securitySchemes = new LinkedHashMap<>();
         for (Map.Entry<String, JsonNode> entry : componentsOf(root, "securitySchemes").entrySet()) {
             AsyncApiSecurityScheme scheme = parseSecurityScheme(entry.getKey(), entry.getValue(), root);
-            if (scheme != null) {
+            if (scheme == null) {
+                //same as for one written inline: a scheme with no 'type' says nothing usable
+                warnings.add(
+                        "The security scheme '" + entry.getKey() + "' declares no 'type'."
+                                + " It is ignored.");
+            } else {
                 securitySchemes.put(entry.getKey(), scheme);
             }
         }
