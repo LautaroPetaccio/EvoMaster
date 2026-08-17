@@ -302,6 +302,130 @@ class AsyncApiGeneBuilderTest {
         assertTrue(field(gene, "children") is ArrayGene<*>)
     }
 
+    // ------------------------------------------------------------------ pointers into a schema
+
+    @Test
+    fun testPayloadPointingAtOnePropertyOfASchema() {
+
+        /*
+            The parser accepts a pointer deeper than the schema it names, checking only that the
+            schema is there. Built naively that becomes the whole schema -- a different message
+            entirely -- because the OpenAPI machinery underneath follows a reference to a whole
+            schema and nothing else.
+         */
+        val schema = AsyncApiAccess.parseFromText(
+            """
+            asyncapi: 3.0.0
+            info:
+              title: A pointer into a schema
+              version: 1.0.0
+            components:
+              messages:
+                m:
+                  payload:
+                    ${'$'}ref: '#/components/schemas/Order/properties/item'
+              schemas:
+                Order:
+                  type: object
+                  properties:
+                    item:
+                      type: string
+                      minLength: 7
+                    quantity:
+                      type: integer
+            """.trimIndent()
+        )
+
+        val gene = payloadOf(schema, "m")
+
+        assertTrue(gene is StringGene, "expected the property, got ${gene.javaClass.simpleName}")
+        assertEquals(7, (gene as StringGene).minLength)
+    }
+
+    @Test
+    fun testPayloadPointingAtAPropertyThatIsNotThere() {
+
+        val schema = AsyncApiAccess.parseFromText(
+            """
+            asyncapi: 3.0.0
+            info:
+              title: A pointer that leads nowhere
+              version: 1.0.0
+            components:
+              messages:
+                m:
+                  payload:
+                    ${'$'}ref: '#/components/schemas/Order/properties/absent'
+              schemas:
+                Order:
+                  type: object
+                  properties:
+                    item:
+                      type: string
+            """.trimIndent()
+        )
+
+        //better to say so than to hand back a message with no fields and no explanation
+        val e = assertThrows(IllegalArgumentException::class.java) {
+            AsyncApiGeneBuilder.buildPayloadGene(schema, schema.messages.getValue("m"), options)
+        }
+
+        assertTrue(e.message!!.contains("absent"), e.message)
+    }
+
+    @Test
+    fun testPayloadReferringToAWholeSchemaStillUsesItsName() {
+
+        //the shortcut that names the gene after the document's own schema must still apply
+        val schema = AsyncApiAccess.getAsyncApiFromResource("/asyncapi/artificial/messages.yaml")
+        val gene = payloadOf(schema, "signupRequest")
+
+        assertEquals("SignupRequest", gene.name)
+    }
+
+    // ------------------------------------------------------------------ where const is not a keyword
+
+    @Test
+    fun testConstIsRewrittenOnlyWhereItIsAKeyword() {
+
+        val schema = AsyncApiAccess.parseFromText(
+            """
+            asyncapi: 3.0.0
+            info:
+              title: The word const in other positions
+              version: 1.0.0
+            components:
+              messages:
+                m:
+                  payload:
+                    type: object
+                    default:
+                      const: this is a value, not a keyword
+                    properties:
+                      const:
+                        type: string
+                        const: still a keyword one level down
+            """.trimIndent()
+        )
+
+        val gene = payloadOf(schema, "m")
+
+        /*
+            A field the document happens to call "const" is still a field, and the const *it*
+            declares is still a keyword. Skipping the word wherever it appears would lose this
+            one, which is why the maps of name-to-schema are walked rather than read as schemas.
+         */
+        assertEquals(
+            listOf("still a keyword one level down"),
+            (field(gene, "const") as EnumGene<*>).values
+        )
+
+        //and the parsed document is never the thing rewritten: it belongs to the parser
+        val payload = schema.messages.getValue("m").payload!!
+        assertTrue(payload.get("default").has("const"))
+        assertFalse(payload.get("properties").get("const").has("enum"))
+    }
+
     @Test
     fun testEverySchemaAPayloadCanReachIsAvailable() {
 

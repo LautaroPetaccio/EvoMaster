@@ -95,6 +95,12 @@ class AsyncApiIndividual(
         )
     )
 
+    /*
+        Every group has to be measured, not just the two this class creates for itself. The
+        children are copied wholesale, so a size left at its default would not match what is
+        actually being handed over, and the group bookkeeping rejects that outright -- a copy
+        would fail for an individual that had picked up, say, a Mongo insertion along the way.
+     */
     override fun copyContent(): AsyncApiIndividual =
         AsyncApiIndividual(
             sampleType,
@@ -102,6 +108,9 @@ class AsyncApiIndividual(
             index,
             children.map { it.copy() }.toMutableList() as MutableList<ActionComponent>,
             mainSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.MAIN),
-            sqlSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_SQL)
+            sqlSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_SQL),
+            mongoSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_MONGO),
+            redisSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_REDIS),
+            dnsSize = groupsView()!!.sizeOfGroup(GroupsOfChildren.INITIALIZATION_DNS)
         )
 }

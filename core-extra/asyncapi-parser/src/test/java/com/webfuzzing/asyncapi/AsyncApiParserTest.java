@@ -342,7 +342,9 @@ public class AsyncApiParserTest {
         //an unusable trait costs only the trait: the message survives
         assertTrue(document.getMessages().containsKey("broken"));
         assertTrue(warns(document, "is not an object"), document.getWarnings().toString());
-        assertTrue(warns(document, "could not be resolved"), document.getWarnings().toString());
+        //the reference that failed is named, which is what makes the warning actionable
+        assertTrue(warns(document, "#/components/messageTraits/absent"),
+                document.getWarnings().toString());
     }
 
     // ------------------------------------------------------------------ schema formats
@@ -421,6 +423,94 @@ public class AsyncApiParserTest {
     }
 
     @Test
+    public void testPayloadThatIsNotAnObjectIsDroppedWithAWarning() {
+
+        /*
+            `true` is a valid JSON Schema meaning "any payload at all", but it describes no shape
+            to build from, so the message goes. What matters here is that it is reported: a
+            message that vanishes with nothing in the warnings cannot be traced back to the line
+            of the document that caused it.
+         */
+        AsyncApiDocument document = parse(
+                "asyncapi: 3.0.0\n"
+                        + "info:\n"
+                        + "  title: Boolean payload\n"
+                        + "  version: 1.0.0\n"
+                        + "components:\n"
+                        + "  messages:\n"
+                        + "    anything:\n"
+                        + "      payload: true\n");
+
+        assertFalse(document.getMessages().containsKey("anything"));
+        assertTrue(warns(document, "anything", "boolean true"), document.getWarnings().toString());
+    }
+
+    @Test
+    public void testHeadersThatAreNotAnObjectCostOnlyTheHeaders() {
+
+        //a broken headers declaration is reported too, but the message itself is still usable
+        AsyncApiDocument document = parse(
+                "asyncapi: 3.0.0\n"
+                        + "info:\n"
+                        + "  title: Broken headers\n"
+                        + "  version: 1.0.0\n"
+                        + "components:\n"
+                        + "  messages:\n"
+                        + "    usable:\n"
+                        + "      headers: []\n"
+                        + "      payload:\n"
+                        + "        type: object\n");
+
+        assertTrue(document.getMessages().containsKey("usable"));
+        assertNull(document.getMessages().get("usable").getHeaders());
+        assertTrue(warns(document, "headers of message 'usable'", "an array"),
+                document.getWarnings().toString());
+    }
+
+    @Test
+    public void testAMessageDeclaringNoPayloadIsNotReportedAsBroken() {
+
+        //absent is not the same as unreadable, and must stay silent
+        AsyncApiDocument document = parse(
+                "asyncapi: 3.0.0\n"
+                        + "info:\n"
+                        + "  title: No payload\n"
+                        + "  version: 1.0.0\n"
+                        + "components:\n"
+                        + "  messages:\n"
+                        + "    empty:\n"
+                        + "      title: nothing to say\n");
+
+        assertTrue(document.getMessages().containsKey("empty"));
+        assertTrue(document.getWarnings().isEmpty(), document.getWarnings().toString());
+    }
+
+    @Test
+    public void testAnUnresolvableTraitIsReportedOnlyOnce() {
+
+        /*
+            The reference that failed is named by the code that followed it. Reporting it a
+            second time, in vaguer terms, only makes the warnings harder to read.
+         */
+        AsyncApiDocument document = parse(
+                "asyncapi: 3.0.0\n"
+                        + "info:\n"
+                        + "  title: Missing trait\n"
+                        + "  version: 1.0.0\n"
+                        + "components:\n"
+                        + "  messages:\n"
+                        + "    withTrait:\n"
+                        + "      traits:\n"
+                        + "        - $ref: '#/components/messageTraits/notThere'\n"
+                        + "      payload:\n"
+                        + "        type: object\n");
+
+        assertEquals(1, document.getWarnings().size(), document.getWarnings().toString());
+        assertTrue(warns(document, "#/components/messageTraits/notThere"),
+                document.getWarnings().toString());
+    }
+
+    @Test
     public void testBrokenHeadersCostOnlyTheHeaders() {
 
         AsyncApiMessage message = load("/asyncapi/artificial/message-schema-references.yaml")
@@ -481,6 +571,37 @@ public class AsyncApiParserTest {
         //assert the content, so that swapping payload and headers would be caught
         assertTrue(message.getPayload().get("properties").has("email"));
         assertTrue(message.getHeaders().get("properties").has("correlationId"));
+    }
+
+    @Test
+    public void testInlineChannelMessageThatIsNotAnObjectIsDroppedWithAWarning() {
+
+        /*
+            A message written inside a channel is dropped like any other when its payload is not
+            a schema that can be read. The channel is the path where that used to happen in
+            silence: nothing is registered under the local key, and unlike a message referenced
+            by '$ref' there is no second warning about the channel to hint at what went missing.
+         */
+        AsyncApiDocument document = parse(
+                "asyncapi: 3.0.0\n"
+                        + "info:\n"
+                        + "  title: An inline message that cannot be read\n"
+                        + "  version: 1.0.0\n"
+                        + "channels:\n"
+                        + "  c:\n"
+                        + "    address: a\n"
+                        + "    messages:\n"
+                        + "      broken:\n"
+                        + "        payload: not a schema\n"
+                        + "      fine:\n"
+                        + "        payload:\n"
+                        + "          type: object\n");
+
+        AsyncApiChannel channel = document.getChannels().get("c");
+
+        //the one that could be read is still there, so the channel is not lost with it
+        assertEquals(setOf("fine"), channel.getMessageKeys().keySet());
+        assertTrue(warns(document, "not a schema"), document.getWarnings().toString());
     }
 
     @Test
@@ -742,6 +863,37 @@ public class AsyncApiParserTest {
 
         assertEquals("Ack", imported.getName());
         assertTrue(imported.getPayload().get("$ref").asText().startsWith("#/components/schemas/_ext_"));
+    }
+
+    @Test
+    public void testPointerDeeperThanAnImportedSchemaKeepsItsTail() {
+
+        AsyncApiDocument document = load("/asyncapi/artificial/external-main.yaml");
+
+        /*
+            Only the component key is renamed. Everything past it describes a way into the
+            imported schema and has to survive, or the reference would name the primary
+            document's own 'Order' -- a different schema that happens to share the name.
+         */
+        String ref = document.getMessages().get("deepPointer").getPayload().get("$ref").asText();
+
+        assertTrue(ref.matches("^#/components/schemas/_ext_[0-9a-f]{8}_Order/properties/item$"), ref);
+    }
+
+    @Test
+    public void testDeepLocalPointerInsideAnImportedDocumentIsRewritten() {
+
+        AsyncApiDocument document = load("/asyncapi/artificial/external-main.yaml");
+
+        //the imported document wrote '#/components/schemas/Order/...' meaning its own Order
+        String ref = document.getMessages().get("importedDeep").getPayload().get("$ref").asText();
+
+        assertTrue(ref.matches("^#/components/schemas/_ext_[0-9a-f]{8}_Order/properties/id$"), ref);
+
+        //and what it now names is the imported copy, which has the fields the other document declared
+        String key = ref.substring("#/components/schemas/".length(), ref.indexOf("/properties/"));
+        assertTrue(document.getComponentSchemas().get(key).get("properties").has("id"));
+        assertFalse(document.getComponentSchemas().get(key).get("properties").has("localOnly"));
     }
 
     @Test
@@ -1043,6 +1195,34 @@ public class AsyncApiParserTest {
         assertTrue(document.getServers().get("dev").getSecurity().isEmpty());
         assertTrue(warns(document, "not a declared"), document.getWarnings().toString());
         assertTrue(warns(document, "no 'type'"), document.getWarnings().toString());
+    }
+
+    @Test
+    public void testDeclaredSecuritySchemeWithNoTypeIsReported() {
+
+        /*
+            A scheme written inline with no 'type' was already reported; one declared under
+            components was dropped in silence. A server referring to it then failed for what
+            looked like a second, unrelated reason.
+         */
+        AsyncApiDocument document = parse(
+                "asyncapi: 3.0.0\n"
+                        + "info:\n"
+                        + "  title: Scheme with no type\n"
+                        + "  version: 1.0.0\n"
+                        + "servers:\n"
+                        + "  dev:\n"
+                        + "    host: dev:5672\n"
+                        + "    protocol: amqp\n"
+                        + "    security:\n"
+                        + "      - $ref: '#/components/securitySchemes/halfWritten'\n"
+                        + "components:\n"
+                        + "  securitySchemes:\n"
+                        + "    halfWritten:\n"
+                        + "      description: someone meant to finish this\n");
+
+        assertFalse(document.getSecuritySchemes().containsKey("halfWritten"));
+        assertTrue(warns(document, "halfWritten", "no 'type'"), document.getWarnings().toString());
     }
 
     @Test

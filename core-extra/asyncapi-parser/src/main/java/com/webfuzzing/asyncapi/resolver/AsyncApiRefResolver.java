@@ -467,6 +467,13 @@ public class AsyncApiRefResolver {
 
     /**
      * Turn the fragment of a reference into a local pointer at the inlined copy.
+     *
+     * Only the component's own key is renamed. A pointer may go deeper than the component --
+     * {@code #/components/schemas/Order/properties/item} addresses one property of a schema --
+     * and everything past the key describes a way *into* the imported node, which the rename
+     * must carry through untouched. Dropping the tail instead would leave the reference naming
+     * the primary document's own component of that name, silently binding a payload to an
+     * unrelated schema.
      */
     private static String renameComponent(
             String fragment,
@@ -477,7 +484,7 @@ public class AsyncApiRefResolver {
         String path = fragment.startsWith("/") ? fragment.substring(1) : fragment;
         String[] segments = path.split("/", -1);
 
-        if (segments.length != 3 || !COMPONENTS.equals(segments[0]) || !INLINABLE.contains(segments[1])) {
+        if (segments.length < 3 || !COMPONENTS.equals(segments[0]) || !INLINABLE.contains(segments[1])) {
             warnings.add(
                     "Reference '" + original + "' points at '" + path + "' of another document."
                             + " Only components/" + SCHEMAS + " and components/" + MESSAGES
@@ -485,7 +492,16 @@ public class AsyncApiRefResolver {
             return null;
         }
 
-        return "#/" + COMPONENTS + "/" + segments[1] + "/" + prefix + segments[2];
+        StringBuilder renamed = new StringBuilder("#/")
+                .append(COMPONENTS).append('/')
+                .append(segments[1]).append('/')
+                .append(prefix).append(segments[2]);
+
+        for (int i = 3; i < segments.length; i++) {
+            renamed.append('/').append(segments[i]);
+        }
+
+        return renamed.toString();
     }
 
     /**
