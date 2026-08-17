@@ -1,7 +1,10 @@
 package com.webfuzzing.asyncapi.models;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * An entry under {@code operations:}, i.e. something an application does on a channel.
@@ -33,6 +36,10 @@ public class AsyncApiOperation {
 
     private final AsyncApiReply reply;
 
+    private final List<String> security;
+
+    private final Map<String, JsonNode> bindings;
+
     private final String title;
 
     private final String summary;
@@ -45,6 +52,8 @@ public class AsyncApiOperation {
         this.channelName = builder.channelName;
         this.messageIds = Collections.unmodifiableList(builder.messageIds);
         this.reply = builder.reply;
+        this.security = Collections.unmodifiableList(builder.security);
+        this.bindings = Collections.unmodifiableMap(builder.bindings);
         this.title = builder.title;
         this.summary = builder.summary;
         this.description = builder.description;
@@ -88,6 +97,21 @@ public class AsyncApiOperation {
         return reply;
     }
 
+    /**
+     * Names of the security schemes this operation requires.
+     */
+    public List<String> getSecurity() {
+        return security;
+    }
+
+    /**
+     * Protocol bindings as declared, keyed by protocol. Nothing is lifted out of these yet, as
+     * no operation-level binding field currently changes what a client does.
+     */
+    public Map<String, JsonNode> getBindings() {
+        return bindings;
+    }
+
     public String getTitle() {
         return title;
     }
@@ -107,6 +131,8 @@ public class AsyncApiOperation {
         private final String channelName;
         private List<String> messageIds = Collections.emptyList();
         private AsyncApiReply reply;
+        private List<String> security = Collections.emptyList();
+        private Map<String, JsonNode> bindings = Collections.emptyMap();
         private String title;
         private String summary;
         private String description;
@@ -120,6 +146,10 @@ public class AsyncApiOperation {
         public Builder messageIds(List<String> messageIds) { this.messageIds = messageIds; return this; }
 
         public Builder reply(AsyncApiReply reply) { this.reply = reply; return this; }
+
+        public Builder security(List<String> security) { this.security = security; return this; }
+
+        public Builder bindings(Map<String, JsonNode> bindings) { this.bindings = bindings; return this; }
 
         public Builder title(String title) { this.title = title; return this; }
 
