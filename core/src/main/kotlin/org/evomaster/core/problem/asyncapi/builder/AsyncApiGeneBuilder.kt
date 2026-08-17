@@ -52,6 +52,12 @@ object AsyncApiGeneBuilder {
      * value is stamped fresh at each execution so that a reply can be paired with the request
      * that caused it, and a gene holding a value that is about to be overwritten is worse than
      * no gene at all: the search would spend mutations on something that never reaches the wire.
+     *
+     * Only an id declared one level deep is left out, which is how every document seen so far
+     * writes it. One pointing further in -- `$message.header#/meta/id` -- keeps its gene, and
+     * the search wastes a few mutations on a field that is overwritten before it is sent. That
+     * is the mild failure of the two, and preferable to descending into a headers schema whose
+     * shape is not known here.
      */
     fun buildHeadersGene(
         schema: AsyncApiDocument,
