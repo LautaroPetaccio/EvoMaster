@@ -569,6 +569,37 @@ public class AsyncApiParserTest {
     }
 
     @Test
+    public void testInlineChannelMessageThatIsNotAnObjectIsDroppedWithAWarning() {
+
+        /*
+            A message written inside a channel is dropped like any other when its payload is not
+            a schema that can be read. The channel is the path where that used to happen in
+            silence: nothing is registered under the local key, and unlike a message referenced
+            by '$ref' there is no second warning about the channel to hint at what went missing.
+         */
+        AsyncApiDocument document = parse(
+                "asyncapi: 3.0.0\n"
+                        + "info:\n"
+                        + "  title: An inline message that cannot be read\n"
+                        + "  version: 1.0.0\n"
+                        + "channels:\n"
+                        + "  c:\n"
+                        + "    address: a\n"
+                        + "    messages:\n"
+                        + "      broken:\n"
+                        + "        payload: not a schema\n"
+                        + "      fine:\n"
+                        + "        payload:\n"
+                        + "          type: object\n");
+
+        AsyncApiChannel channel = document.getChannels().get("c");
+
+        //the one that could be read is still there, so the channel is not lost with it
+        assertEquals(setOf("fine"), channel.getMessageKeys().keySet());
+        assertTrue(warns(document, "not a schema"), document.getWarnings().toString());
+    }
+
+    @Test
     public void testChannelWithoutAddressAndDynamicReplyAddress() {
 
         AsyncApiDocument document = load("/asyncapi/artificial/inline-messages.yaml");
