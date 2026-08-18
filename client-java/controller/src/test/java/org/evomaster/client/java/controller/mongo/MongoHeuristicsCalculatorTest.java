@@ -273,6 +273,40 @@ public class MongoHeuristicsCalculatorTest {
         assertTrue(calculator.computeHeuristicDocument(convertToDocument(allQuery), document).isFalse());
     }
 
+    @Test
+    public void testAllMatchesWhenDocumentArrayHasExtraElements() {
+        // $all only requires the expected values to be present; extra elements are irrelevant
+        Document doc = new Document().append("employees", new ArrayList<>(Arrays.asList(1, 5, 6)));
+        Bson allQuery = Filters.all("employees", new ArrayList<>(Arrays.asList(1, 5)));
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(allQuery), doc).isTrue());
+    }
+
+    @Test
+    public void testAllDoesNotMatchWhenAnExpectedValueIsMissing() {
+        // the array contains 1, but not 2 nor 3, so the condition does not hold
+        Document doc = new Document().append("employees", new ArrayList<>(Arrays.asList(1)));
+        Bson allQuery = Filters.all("employees", new ArrayList<>(Arrays.asList(1, 2, 3)));
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(allQuery), doc).isFalse());
+    }
+
+    @Test
+    public void testAllGivesBetterScoreWhenFewerExpectedValuesAreMissing() {
+        Bson allQuery = Filters.all("employees", new ArrayList<>(Arrays.asList(1, 2, 3)));
+        Document closer = new Document().append("employees", new ArrayList<>(Arrays.asList(1, 2)));
+        Document farther = new Document().append("employees", new ArrayList<>(Arrays.asList(1)));
+
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+        Truthness closerTruthness = calculator.computeHeuristicDocument(convertToDocument(allQuery), closer);
+        Truthness fartherTruthness = calculator.computeHeuristicDocument(convertToDocument(allQuery), farther);
+
+        assertTrue(closerTruthness.isFalse());
+        assertTrue(fartherTruthness.isFalse());
+        assertTrue(closerTruthness.getOfTrue() > fartherTruthness.getOfTrue(),
+                "a document missing fewer expected values must be scored closer to true");
+    }
+
 
     @Test
     public void testSize() {
