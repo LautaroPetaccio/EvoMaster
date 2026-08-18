@@ -532,6 +532,17 @@ public class MongoHeuristicsCalculator {
         }
     }
 
+    /**
+     * Computes the heuristic score for a {"f",{"$all": [v1, ..., vn] }} query.
+     * The condition holds when the array held by "f" contains every one of the expected values,
+     * so the score is an AND aggregation over the expected values, each of which is scored by an
+     * OR aggregation over the elements of the array. Note the direction: extra elements in the
+     * document are irrelevant, whereas a missing expected value makes the condition false.
+     *
+     * @param operation the {"f",{"$all": [...]}} query encapsulated as an AllOperation
+     * @param document  the BSON document to evaluate the heuristic score against
+     * @return a Truthness object representing the distance of the document from meeting the condition
+     */
     private Truthness computeHeuristic(AllOperation<?> operation, Object document) {
         requireNonNullQueryAndDocument(operation, document);
 
@@ -550,15 +561,32 @@ public class MongoHeuristicsCalculator {
                 if (actualValuesList.isEmpty()) {
                     return C_FALSE;
                 } else {
-                    Truthness res = buildAndAggregationTruthness(actualValuesList
+                    Truthness res = buildAndAggregationTruthness(expectedValues
                             .stream()
-                            .map(actualValuesListElement ->
-                                    computeHeuristic(actualValuesListElement, expectedValues))
+                            .map(expectedValue ->
+                                    computeHeuristicForContainedValue(expectedValue, actualValuesList))
                             .toArray(Truthness[]::new));
                     return buildSafeScaledTruthness(res);
                 }
             }
         }
+    }
+
+    /**
+     * Computes the heuristic score for the presence of a single expected value inside the array
+     * held by the queried field, ie an OR aggregation over the elements of that array.
+     *
+     * @param expectedValue a value that a {"f",{"$all": [...]}} query requires to be present
+     * @param actualValues  the non-empty array held by the field "f" in the document
+     * @return a Truthness object representing how close the array is to containing the expected value
+     */
+    private Truthness computeHeuristicForContainedValue(Object expectedValue, List<?> actualValues) {
+        Objects.requireNonNull(actualValues);
+
+        return buildOrAggregationTruthness(actualValues.stream()
+                .map(actualValue -> computeHeuristicComparisonNullableValues(expectedValue, actualValue,
+                        SqlExpressionEvaluator.ComparisonOperatorType.EQUALS_TO))
+                .toArray(Truthness[]::new));
     }
 
     private static Truthness buildSafeScaledTruthness(Truthness truthness) {
