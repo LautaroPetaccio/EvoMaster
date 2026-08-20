@@ -46,16 +46,42 @@ public class AsyncApiDocument {
 
     private final String defaultContentType;
 
+    /**
+     * Key is the server name, i.e. its key under {@code servers}.
+     * Value is the server declared under it.
+     */
     private final Map<String, AsyncApiServer> servers;
 
+    /**
+     * Key is the channel key, i.e. its key under {@code channels} and the one a {@code $ref}
+     * addresses it by. Value is the channel declared under it.
+     */
     private final Map<String, AsyncApiChannel> channels;
 
+    /**
+     * Key is the operation key, i.e. its key under {@code operations}.
+     * Value is the operation declared under it.
+     */
     private final Map<String, AsyncApiOperation> operations;
 
+    /**
+     * Key is the message id: its key under {@code components.messages}, or the synthetic
+     * {@code <channelKey>.<localMessageKey>} for a message written inline in a channel.
+     * Value is the message that id refers to.
+     */
     private final Map<String, AsyncApiMessage> messages;
 
+    /**
+     * Key is the schema name, i.e. its key under {@code components.schemas}.
+     * Value is that schema as a raw JSON Schema node.
+     */
     private final Map<String, JsonNode> componentSchemas;
 
+    /**
+     * Key is the security scheme key, i.e. its key under {@code components.securitySchemes},
+     * or a synthetic name for a scheme written inline where it is used.
+     * Value is the scheme declared under it.
+     */
     private final Map<String, AsyncApiSecurityScheme> securitySchemes;
 
     private final List<String> warnings;
@@ -254,11 +280,17 @@ public class AsyncApiDocument {
         private final DocumentLocation sourceLocation;
         private final String version;
         private String defaultContentType = DEFAULT_CONTENT_TYPE;
+        /** @see AsyncApiDocument#servers */
         private Map<String, AsyncApiServer> servers = Collections.emptyMap();
+        /** @see AsyncApiDocument#channels */
         private Map<String, AsyncApiChannel> channels = Collections.emptyMap();
+        /** @see AsyncApiDocument#operations */
         private Map<String, AsyncApiOperation> operations = Collections.emptyMap();
+        /** @see AsyncApiDocument#messages */
         private Map<String, AsyncApiMessage> messages = Collections.emptyMap();
+        /** @see AsyncApiDocument#componentSchemas */
         private Map<String, JsonNode> componentSchemas = Collections.emptyMap();
+        /** @see AsyncApiDocument#securitySchemes */
         private Map<String, AsyncApiSecurityScheme> securitySchemes = Collections.emptyMap();
         private List<String> warnings = Collections.emptyList();
 

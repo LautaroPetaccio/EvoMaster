@@ -24,6 +24,10 @@ public class AsyncApiChannelBindings {
 
     private final String wsMethod;
 
+    /**
+     * Key is the protocol name, e.g. "kafka" or "amqp".
+     * Value is the binding declared for that protocol, exactly as written.
+     */
     private final Map<String, JsonNode> raw;
 
     private AsyncApiChannelBindings(Builder builder) {
@@ -96,6 +100,7 @@ public class AsyncApiChannelBindings {
         private String amqpQueue;
         private String amqpExchange;
         private String wsMethod;
+        /** @see AsyncApiChannelBindings#raw */
         private Map<String, JsonNode> raw = Collections.emptyMap();
 
         private Builder() {
