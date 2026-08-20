@@ -8,7 +8,7 @@ import org.evomaster.core.search.GroupsOfChildren
 import org.evomaster.core.search.StructuralElement
 import org.evomaster.core.search.action.ActionComponent
 import org.evomaster.core.search.tracer.TrackOperator
-import org.evomaster.core.sql.SqlAction
+import org.evomaster.core.database.sql.SqlAction
 import kotlin.math.max
 
 /**
