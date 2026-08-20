@@ -14,7 +14,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -198,10 +197,11 @@ public class AsyncApiRefResolver {
             return;
         }
 
+        //key is the absolute location of an imported document, value is that document
         Map<String, LoadedDocument> loaded = new LinkedHashMap<>();
 
         //locations already dealt with, whether imported or failed
-        Set<String> settled = new HashSet<>();
+        Set<String> settled = new LinkedHashSet<>();
 
         //a document naming itself still needs its references turned back into local ones
         boolean namesItself = false;
@@ -375,6 +375,9 @@ public class AsyncApiRefResolver {
      * a plain {@code #/components/schemas/X} written in there means <i>that</i> document's X,
      * which is now stored under the document's own prefix. The primary document's own local
      * references are already correct and are left alone.
+     *
+     * {@code loaded} is keyed by the absolute location of each imported document, its value
+     * being that document and the prefix its components were copied in under.
      */
     private static void rewriteRefs(
             JsonNode node,
