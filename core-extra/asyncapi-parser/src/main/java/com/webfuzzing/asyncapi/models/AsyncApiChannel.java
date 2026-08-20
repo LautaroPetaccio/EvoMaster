@@ -18,6 +18,11 @@ public class AsyncApiChannel {
 
     private final String address;
 
+    /**
+     * Key is the channel-local message key, which is what a {@code $ref} of the form
+     * {@code #/channels/<channel>/messages/<localKey>} addresses and is frequently not the
+     * component id. Value is the id of that message in {@link AsyncApiDocument#getMessages()}.
+     */
     private final Map<String, String> messageKeys;
 
     private final List<String> messageIds;
@@ -79,6 +84,7 @@ public class AsyncApiChannel {
 
         private final String name;
         private String address;
+        /** @see AsyncApiChannel#messageKeys */
         private Map<String, String> messageKeys = Collections.emptyMap();
 
         private Builder(String name) {
