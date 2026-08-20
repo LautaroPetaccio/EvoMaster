@@ -28,10 +28,19 @@ public class AsyncApiChannel {
 
     private final List<String> servers;
 
+    /**
+     * Key is the channel-local message key, which is what a {@code $ref} of the form
+     * {@code #/channels/<channel>/messages/<localKey>} addresses and is frequently not the
+     * component id. Value is the id of that message in {@link AsyncApiDocument#getMessages()}.
+     */
     private final Map<String, String> messageKeys;
 
     private final List<String> messageIds;
 
+    /**
+     * Key is the parameter name, as used by a {@code {placeholder}} in the address.
+     * Value is that parameter's declaration, kept as a raw node.
+     */
     private final Map<String, JsonNode> parameters;
 
     private final AsyncApiChannelBindings bindings;
@@ -142,7 +151,9 @@ public class AsyncApiChannel {
         private final String name;
         private String address;
         private List<String> servers = Collections.emptyList();
+        /** @see AsyncApiChannel#messageKeys */
         private Map<String, String> messageKeys = Collections.emptyMap();
+        /** @see AsyncApiChannel#parameters */
         private Map<String, JsonNode> parameters = Collections.emptyMap();
         private AsyncApiChannelBindings bindings = AsyncApiChannelBindings.none();
 

@@ -22,6 +22,10 @@ public class AsyncApiServer {
 
     private final String pathname;
 
+    /**
+     * Key is the variable name, as used by a {@code {placeholder}} in the host or pathname.
+     * Value is that variable's declaration.
+     */
     private final Map<String, AsyncApiServerVariable> variables;
 
     private final List<String> security;
@@ -99,6 +103,7 @@ public class AsyncApiServer {
         private final String protocol;
         private String protocolVersion;
         private String pathname;
+        /** @see AsyncApiServer#variables */
         private Map<String, AsyncApiServerVariable> variables = Collections.emptyMap();
         private List<String> security = Collections.emptyList();
 

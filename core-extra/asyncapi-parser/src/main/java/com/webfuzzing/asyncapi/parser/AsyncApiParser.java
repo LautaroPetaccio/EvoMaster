@@ -22,7 +22,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -308,7 +307,7 @@ public class AsyncApiParser {
      */
     private static String unfollowableSchemaRef(JsonNode start, Map<String, JsonNode> componentSchemas) {
 
-        Set<String> visited = new HashSet<>();
+        Set<String> visited = new LinkedHashSet<>();
         Deque<JsonNode> pending = new ArrayDeque<>();
         pending.add(start);
 
@@ -914,7 +913,7 @@ public class AsyncApiParser {
      * with a StackOverflowError.
      */
     private static JsonNode dereference(JsonNode node, JsonNode root, List<String> warnings) {
-        return dereference(node, root, warnings, new HashSet<String>());
+        return dereference(node, root, warnings, new LinkedHashSet<String>());
     }
 
     private static JsonNode dereference(
@@ -952,6 +951,10 @@ public class AsyncApiParser {
      * Every field of a node, with any {@code $ref} followed -- both one on the node itself and
      * one on each of its values. Bindings are routinely shared through {@code components}, and
      * reading them without following the reference is worse than not reading them at all.
+     *
+     * Key is the field name exactly as the document declares it, so what it means depends on
+     * what is being read: a protocol name such as "kafka" for a {@code bindings} node, and a
+     * parameter name for a {@code parameters} one. Value is that field's node, dereferenced.
      */
     private static Map<String, JsonNode> dereferencedFields(
             JsonNode node,
