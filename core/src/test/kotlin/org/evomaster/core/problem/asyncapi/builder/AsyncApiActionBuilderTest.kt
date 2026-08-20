@@ -3,7 +3,7 @@ package org.evomaster.core.problem.asyncapi.builder
 import com.webfuzzing.asyncapi.access.AsyncApiAccess
 import com.webfuzzing.asyncapi.models.AsyncApiDocument
 import org.evomaster.core.EMConfig
-import org.evomaster.core.mongo.MongoDbAction
+import org.evomaster.core.database.mongo.MongoDbAction
 import org.evomaster.core.problem.asyncapi.data.AsyncApiAction
 import org.evomaster.core.problem.asyncapi.data.AsyncApiIndividual
 import org.evomaster.core.problem.asyncapi.param.AsyncApiParam
