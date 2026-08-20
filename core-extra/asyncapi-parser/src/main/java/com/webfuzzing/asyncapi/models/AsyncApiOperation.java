@@ -38,6 +38,10 @@ public class AsyncApiOperation {
 
     private final List<String> security;
 
+    /**
+     * Key is the protocol name, e.g. "kafka" or "amqp".
+     * Value is the binding this operation declares for that protocol, as a raw node.
+     */
     private final Map<String, JsonNode> bindings;
 
     private final String title;
@@ -132,6 +136,7 @@ public class AsyncApiOperation {
         private List<String> messageIds = Collections.emptyList();
         private AsyncApiReply reply;
         private List<String> security = Collections.emptyList();
+        /** @see AsyncApiOperation#bindings */
         private Map<String, JsonNode> bindings = Collections.emptyMap();
         private String title;
         private String summary;
