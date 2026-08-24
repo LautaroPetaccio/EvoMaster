@@ -26,6 +26,10 @@ public class AsyncApiChannel {
 
     private final String address;
 
+    /**
+     * Names of the servers this channel is available on, from its {@code servers} array.
+     * Empty means every server, which is the specification's default.
+     */
     private final List<String> servers;
 
     /**
@@ -35,6 +39,10 @@ public class AsyncApiChannel {
      */
     private final Map<String, String> messageKeys;
 
+    /**
+     * Ids of every message this channel carries, in declaration order and distinct: the values
+     * of {@link #messageKeys}, since two local keys may name the same message.
+     */
     private final List<String> messageIds;
 
     /**
@@ -150,6 +158,7 @@ public class AsyncApiChannel {
 
         private final String name;
         private String address;
+        /** @see AsyncApiChannel#servers */
         private List<String> servers = Collections.emptyList();
         /** @see AsyncApiChannel#messageKeys */
         private Map<String, String> messageKeys = Collections.emptyMap();
