@@ -25,6 +25,10 @@ public class AsyncApiChannel {
      */
     private final Map<String, String> messageKeys;
 
+    /**
+     * Ids of every message this channel carries, in declaration order and distinct: the values
+     * of {@link #messageKeys}, since two local keys may name the same message.
+     */
     private final List<String> messageIds;
 
     private AsyncApiChannel(Builder builder) {

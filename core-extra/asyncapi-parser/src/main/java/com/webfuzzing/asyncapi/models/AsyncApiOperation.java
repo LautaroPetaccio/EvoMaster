@@ -29,6 +29,10 @@ public class AsyncApiOperation {
 
     private final String channelName;
 
+    /**
+     * Ids of the messages this operation carries, in declaration order: the subset its
+     * {@code messages} array selects, or all of its channel's when it declares none.
+     */
     private final List<String> messageIds;
 
     private final AsyncApiReply reply;
@@ -105,6 +109,7 @@ public class AsyncApiOperation {
         private final String name;
         private final Action action;
         private final String channelName;
+        /** @see AsyncApiOperation#messageIds */
         private List<String> messageIds = Collections.emptyList();
         private AsyncApiReply reply;
         private String title;
