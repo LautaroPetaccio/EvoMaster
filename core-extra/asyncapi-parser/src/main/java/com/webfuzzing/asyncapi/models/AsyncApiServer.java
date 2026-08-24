@@ -28,6 +28,10 @@ public class AsyncApiServer {
      */
     private final Map<String, AsyncApiServerVariable> variables;
 
+    /**
+     * Names of the security schemes this server requires, as keys into
+     * {@link AsyncApiDocument#getSecuritySchemes()}.
+     */
     private final List<String> security;
 
     private AsyncApiServer(Builder builder) {
@@ -105,6 +109,7 @@ public class AsyncApiServer {
         private String pathname;
         /** @see AsyncApiServer#variables */
         private Map<String, AsyncApiServerVariable> variables = Collections.emptyMap();
+        /** @see AsyncApiServer#security */
         private List<String> security = Collections.emptyList();
 
         private Builder(String name, String host, String protocol) {
