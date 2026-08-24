@@ -12,6 +12,11 @@ public class AsyncApiServerVariable {
 
     private final String defaultValue;
 
+    /**
+     * The closed set of values this variable may take, when one is declared, in declaration
+     * order. Empty when the document declares none. Named for the {@code enum} field, which is
+     * a Java keyword.
+     */
     private final List<String> enumeration;
 
     private final String description;

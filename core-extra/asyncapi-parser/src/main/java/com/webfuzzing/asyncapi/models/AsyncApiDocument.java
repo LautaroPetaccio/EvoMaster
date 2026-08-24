@@ -84,6 +84,10 @@ public class AsyncApiDocument {
      */
     private final Map<String, AsyncApiSecurityScheme> securitySchemes;
 
+    /**
+     * Everything that could not be read but did not stop the document being usable, one entry
+     * per problem, in the order the parser met them.
+     */
     private final List<String> warnings;
 
     private AsyncApiDocument(Builder builder) {
@@ -292,6 +296,7 @@ public class AsyncApiDocument {
         private Map<String, JsonNode> componentSchemas = Collections.emptyMap();
         /** @see AsyncApiDocument#securitySchemes */
         private Map<String, AsyncApiSecurityScheme> securitySchemes = Collections.emptyMap();
+        /** @see AsyncApiDocument#warnings */
         private List<String> warnings = Collections.emptyList();
 
         private Builder(String rawText, DocumentLocation sourceLocation, String version) {
