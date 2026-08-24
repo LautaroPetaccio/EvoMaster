@@ -2,6 +2,7 @@ package com.webfuzzing.asyncapi.models;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The {@code reply:} of a request/reply operation -- the construct AsyncAPI 3.0 added that
@@ -11,11 +12,20 @@ public class AsyncApiReply {
 
     private final String channelName;
 
+    /**
+     * Ids of the messages the reply may be, in declaration order. More than one means the
+     * contract enumerates distinct outcomes, such as a result and an error.
+     */
     private final List<String> messageIds;
 
     private final String addressLocation;
 
+    /**
+     * {@code channelName} and {@code addressLocation} are both nullable: a reply may name no
+     * usable channel as long as it announces an address, and vice versa.
+     */
     public AsyncApiReply(String channelName, List<String> messageIds, String addressLocation) {
+        Objects.requireNonNull(messageIds, "messageIds");
         this.channelName = channelName;
         this.messageIds = Collections.unmodifiableList(messageIds);
         this.addressLocation = addressLocation;
