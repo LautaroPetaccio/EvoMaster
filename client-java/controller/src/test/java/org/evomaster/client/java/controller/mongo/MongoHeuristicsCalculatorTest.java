@@ -569,6 +569,40 @@ public class MongoHeuristicsCalculatorTest {
     }
 
     @Test
+    public void testNotMissingFieldWithInnerOperatorThatMatchesAbsentField() {
+        /*
+            $ne, $nin and $exists:false all match a document in which the field is absent,
+            so negating them must not match. This is the case a blanket "true when the field
+            is missing" answer gets wrong.
+         */
+        Document doc = new Document().append("name", "Bob"); // "age" field is undefined
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        Bson notNotEquals = Filters.not(Filters.ne("age", 5));
+        Bson notNotIn = Filters.not(Filters.nin("age", new ArrayList<>(Arrays.asList(1, 2))));
+        Bson notExistsFalse = Filters.not(Filters.exists("age", false));
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(notNotEquals), doc).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(notNotIn), doc).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(notExistsFalse), doc).isFalse());
+    }
+
+    @Test
+    public void testNotMissingFieldWithInnerOperatorThatDoesNotMatchAbsentField() {
+        // the complementary cases, which must stay true once the missing-field shortcut is gone
+        Document doc = new Document().append("name", "Bob"); // "age" field is undefined
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        Bson notEquals = Filters.not(Filters.eq("age", 5));
+        Bson notIn = Filters.not(Filters.in("age", new ArrayList<>(Arrays.asList(1, 2))));
+        Bson notExistsTrue = Filters.not(Filters.exists("age", true));
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(notEquals), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(notIn), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(notExistsTrue), doc).isTrue());
+    }
+
+    @Test
     public void testNotNullValue() {
         Document doc = new Document().append("age", null);
         Bson bsonTrue = Filters.not(Filters.eq("age", null));
