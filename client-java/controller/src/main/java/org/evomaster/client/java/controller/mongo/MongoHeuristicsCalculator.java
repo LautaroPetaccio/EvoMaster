@@ -274,9 +274,17 @@ public class MongoHeuristicsCalculator {
             truthnessOfComparison = SqlExpressionEvaluator.calculateTruthnessForStringComparison(actualString, expectedString, comparisonOperatorType);
 
         } else {
-            // If both types are supported, but no actual comparison logic is defined,
-            // we considered them to be incompatible, therefore the comparison returns false.
-            truthnessOfComparison = C_FALSE;
+            /*
+                Both types are supported, but no comparison logic is defined for this combination,
+                ie the two values are of different, mutually incomparable BSON types.
+                MongoDB considers such values to be different from each other: an equality check is
+                then false, but an inequality check is true. Ordering comparisons do not match across
+                different BSON types either, so those stay false as well.
+             */
+            truthnessOfComparison =
+                    comparisonOperatorType == SqlExpressionEvaluator.ComparisonOperatorType.NOT_EQUALS_TO
+                            ? TRUE_C
+                            : C_FALSE;
         }
         return truthnessOfComparison;
     }

@@ -656,6 +656,39 @@ public class MongoHeuristicsCalculatorTest {
     }
 
     @Test
+    public void testNotEqualsStringOnIntegerField() {
+        // values of different, incomparable BSON types are different, so $ne holds
+        Document doc = new Document().append("value", 42);
+        Bson bson = Filters.ne("value", "abc");
+
+        Truthness distance = new MongoHeuristicsCalculator().computeHeuristicDocument(convertToDocument(bson), doc);
+
+        assertTrue(distance.isTrue());
+    }
+
+    @Test
+    public void testNotEqualsIntegerOnBooleanField() {
+        Document doc = new Document().append("value", true);
+        Bson bson = Filters.ne("value", 1);
+
+        Truthness distance = new MongoHeuristicsCalculator().computeHeuristicDocument(convertToDocument(bson), doc);
+
+        assertTrue(distance.isTrue());
+    }
+
+    @Test
+    public void testOrderingComparisonsStayFalseAcrossIncomparableTypes() {
+        // unlike $ne, ordering operators do not match across different BSON types
+        Document doc = new Document().append("value", 42);
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.gt("value", "abc")), doc).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.gte("value", "abc")), doc).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.lt("value", "abc")), doc).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.lte("value", "abc")), doc).isFalse());
+    }
+
+    @Test
     public void testEqualsDouble() {
         Document doc = new Document().append("score", 10.5d);
         Bson bsonTrue = Filters.eq("score", 10.5d);
