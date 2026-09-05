@@ -492,8 +492,27 @@ public class MongoHeuristicsCalculator {
     private Truthness computeHeuristic(InOperation<?> operation, Object document) {
         requireNonNullQueryAndDocument(operation, document);
 
-        List<?> expectedValueList = operation.getValues();
-        final String fieldName = operation.getFieldName();
+        return computeHeuristicForMembership(operation.getFieldName(), operation.getValues(), document);
+    }
+
+    /**
+     * Computes the heuristic score for the membership of a field's value in a list of expected
+     * values, ie the condition shared by {"f",{"$in": [...]}} and, negated, by
+     * {"f",{"$nin": [...]}}. When the field holds an array, MongoDB checks each of its elements,
+     * and the condition holds if any of them is one of the expected values.
+     *
+     * @param fieldName      the name of the field the query is about
+     * @param expectedValues the values the query lists as candidates
+     * @param document       the BSON document to evaluate the heuristic score against
+     * @return a Truthness object representing how close the field is to holding one of the values
+     */
+    private Truthness computeHeuristicForMembership(String fieldName, List<?> expectedValues, Object document) {
+        Objects.requireNonNull(expectedValues);
+
+        if (expectedValues.isEmpty()) {
+            // no candidate value can be matched
+            return C_FALSE;
+        }
 
         final Object actualValue;
         if (documentContainsField(document, fieldName)) {
@@ -505,16 +524,18 @@ public class MongoHeuristicsCalculator {
             actualValue = null;
         }
 
-        final Truthness res;
         if (actualValue instanceof List<?>) {
             List<?> actualValueList = (List<?>) actualValue;
-            res = buildOrAggregationTruthness(actualValueList.stream()
-                    .map(value -> computeHeuristic(value, expectedValueList))
+            if (actualValueList.isEmpty()) {
+                // an empty array holds none of the expected values
+                return C_FALSE;
+            }
+            return buildOrAggregationTruthness(actualValueList.stream()
+                    .map(value -> computeHeuristic(value, expectedValues))
                     .toArray(Truthness[]::new));
         } else {
-            res = computeHeuristic(actualValue, expectedValueList);
+            return computeHeuristic(actualValue, expectedValues);
         }
-        return res;
     }
 
     private Truthness computeHeuristic(Object actualValue, List<?> expectedValueList) {
@@ -529,15 +550,17 @@ public class MongoHeuristicsCalculator {
     private Truthness computeHeuristic(NotInOperation<?> operation, Object document) {
         requireNonNullQueryAndDocument(operation, document);
 
-        List<?> expectedValues = operation.getValues();
         final String fieldName = operation.getFieldName();
 
         if (!documentContainsField(document, fieldName)) {
+            // a value that is not there cannot be one of the excluded ones
             return TRUE_C;
-        } else {
-            Object actualValue = getValue(document, fieldName);
-            return computeHeuristic(actualValue, expectedValues).invert();
         }
+        /*
+            $nin is the negation of $in, so it must consider the array elements in the same way:
+            a document whose array holds any of the excluded values does not match.
+         */
+        return computeHeuristicForMembership(fieldName, operation.getValues(), document).invert();
     }
 
     /**

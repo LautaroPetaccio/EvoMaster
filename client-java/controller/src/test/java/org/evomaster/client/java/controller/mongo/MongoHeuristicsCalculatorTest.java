@@ -220,6 +220,47 @@ public class MongoHeuristicsCalculatorTest {
     }
 
     @Test
+    public void testNotInArrayFieldHoldingAnExcludedValue() {
+        // the array holds "a", which is excluded, so the document does not match
+        Document doc = new Document().append("tags", new ArrayList<>(Arrays.asList("a", "b")));
+        Bson bson = Filters.nin("tags", new ArrayList<>(Arrays.asList("a")));
+        Truthness distance = new MongoHeuristicsCalculator().computeHeuristicDocument(convertToDocument(bson), doc);
+        assertTrue(distance.isFalse());
+    }
+
+    @Test
+    public void testNotInArrayFieldHoldingNoExcludedValue() {
+        Document doc = new Document().append("tags", new ArrayList<>(Arrays.asList("a", "b")));
+        Bson bson = Filters.nin("tags", new ArrayList<>(Arrays.asList("z")));
+        Truthness distance = new MongoHeuristicsCalculator().computeHeuristicDocument(convertToDocument(bson), doc);
+        assertTrue(distance.isTrue());
+    }
+
+    @Test
+    public void testInAndNotInOnEmptyArrayField() {
+        Document doc = new Document().append("tags", Collections.emptyList());
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        Bson in = Filters.in("tags", new ArrayList<>(Arrays.asList("a")));
+        Bson nin = Filters.nin("tags", new ArrayList<>(Arrays.asList("a")));
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(in), doc).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(nin), doc).isTrue());
+    }
+
+    @Test
+    public void testInAndNotInOnEmptyExpectedList() {
+        Document doc = new Document().append("tags", new ArrayList<>(Arrays.asList("a", "b")));
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        Bson in = Filters.in("tags", Collections.emptyList());
+        Bson nin = Filters.nin("tags", Collections.emptyList());
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(in), doc).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(nin), doc).isTrue());
+    }
+
+    @Test
     public void testAll() {
         Document doc = new Document().append("employees", new ArrayList<>(Arrays.asList(1, 5, 6)));
         Bson bsonTrue = Filters.all("employees", new ArrayList<>(Arrays.asList(1, 5, 6)));
