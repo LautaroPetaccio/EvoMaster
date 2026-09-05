@@ -783,13 +783,14 @@ public class MongoHeuristicsCalculator {
     private Truthness computeHeuristic(NotOperation operation, Object document) {
         requireNonNullQueryAndDocument(operation, document);
 
-        String fieldName = operation.getFieldName();
-        if (!documentContainsField(document, fieldName)) {
-            return TRUE_C;
-        } else {
-            QueryOperation condition = operation.getCondition();
-            return computeHeuristicOnDocument(condition, document).invert();
-        }
+        /*
+            No special case for a missing field here. Several operators do match a document in
+            which the field is absent (eg $ne, $nin, and $exists with "false"), and $not must then
+            be false. The inner operators already treat an absent field as a null value, so
+            negating their score is correct whether or not the field is there.
+         */
+        QueryOperation condition = operation.getCondition();
+        return computeHeuristicOnDocument(condition, document).invert();
     }
 
     private Truthness computeHeuristic(NorOperation operation, Object document) {
