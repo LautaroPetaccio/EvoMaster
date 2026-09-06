@@ -155,6 +155,34 @@ public class MongoQueriesController {
         return executeQuery(new Document("tags", new Document("$all", Arrays.asList("a", "b"))));
     }
 
+    /**
+     * "name" holds a string, so it is of a different, incomparable BSON type than the
+     * number being compared against. MongoDB considers such values different, so $ne holds.
+     */
+    @GetMapping("neCrossType")
+    public ResponseEntity<Void> findNeCrossType() {
+        return executeQuery(new Document("name", new Document("$ne", 42)));
+    }
+
+    /**
+     * "tags" holds an array, so $nin must look at its elements: only a document whose
+     * array does not hold "a" satisfies this.
+     */
+    @GetMapping("ninArrayField")
+    public ResponseEntity<Void> findNinArrayField() {
+        return executeQuery(new Document("tags", new Document("$nin", Arrays.asList("a"))));
+    }
+
+    /**
+     * $exists with "false" matches a document in which the field is absent, so negating it
+     * must match only the documents that do have the field.
+     */
+    @GetMapping("notExistsFalse")
+    public ResponseEntity<Void> findNotExistsFalse() {
+        return executeQuery(new Document("description",
+                new Document("$not", new Document("$exists", false))));
+    }
+
     @GetMapping("type")
     public ResponseEntity<Void> findType() {
         return executeQuery(new Document("name", new Document("$type", 2)));
