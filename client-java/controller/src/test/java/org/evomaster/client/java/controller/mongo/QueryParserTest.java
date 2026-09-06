@@ -1616,12 +1616,22 @@ class QueryParserTest {
         assertAll(
                 () -> assertInvalidQuery(
                         new Document("flags", new Document("$bitsAllClear", "5"))),
-                () -> assertInvalidQuery(new Document("flags", new Document("$bitsAllSet", 5))),
                 () -> assertInvalidQuery(
                         new Document("flags", new Document("$bitsAnyClear", true))),
                 () -> assertInvalidQuery(
                         new Document("flags", new Document("$bitsAnySet", new Document("bit", 1))))
         );
+    }
+
+    @Test
+    void testParseBitwiseValuesAcceptsIntegerAndLongBitmasks() {
+        // MongoDB accepts any integer bitmask, so it can arrive as an Integer as well as a Long
+        assertTrue(parser.parse(
+                new Document("flags", new Document("$bitsAllSet", 5))) instanceof BitsAllSetOperation);
+        assertTrue(parser.parse(
+                new Document("flags", new Document("$bitsAllSet", 5L))) instanceof BitsAllSetOperation);
+        assertTrue(parser.parse(
+                new Document("flags", new Document("$bitsAnyClear", 5))) instanceof BitsAnyClearOperation);
     }
 
     @Test

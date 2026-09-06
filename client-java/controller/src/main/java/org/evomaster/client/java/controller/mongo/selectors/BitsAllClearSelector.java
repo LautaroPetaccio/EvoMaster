@@ -15,7 +15,10 @@ public class BitsAllClearSelector extends SingleConditionQuerySelector {
     @Override
     protected QueryOperation parseValue(String fieldName, Object value) {
         Objects.requireNonNull(fieldName);
-        return value instanceof Long ? new BitsAllClearOperation(fieldName, (Long) value) : null;
+        // MongoDB accepts any integer bitmask, so it can arrive as an Integer as well as a Long
+        return value instanceof Integer || value instanceof Long
+                ? new BitsAllClearOperation(fieldName, ((Number) value).longValue())
+                : null;
     }
 
     @Override
