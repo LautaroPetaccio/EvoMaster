@@ -1186,6 +1186,35 @@ public class MongoHeuristicsCalculatorTest {
     }
 
     @Test
+    public void testEqualsMatchingAnElementOfAnArrayField() {
+        // a field holding an array matches a value when any of its elements is that value
+        Document doc = new Document().append("tags", new ArrayList<>(Arrays.asList("a", "b")));
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.eq("tags", "a")), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.ne("tags", "a")), doc).isFalse());
+
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.eq("tags", "z")), doc).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.ne("tags", "z")), doc).isTrue());
+    }
+
+    @Test
+    public void testEqualsMatchingAnArrayFieldAsAWhole() {
+        // the same field is also matched by the array itself, not only by its elements
+        Document doc = new Document().append("tags", new ArrayList<>(Arrays.asList("a", "b")));
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.eq("tags", Arrays.asList("a", "b"))), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.ne("tags", Arrays.asList("a", "b"))), doc).isFalse());
+    }
+
+    @Test
     public void testEqualsBetweenEmptyLists() {
         // two empty arrays are equal; comparing them used to have no element to aggregate over
         Document doc = new Document().append("employees", Collections.emptyList());

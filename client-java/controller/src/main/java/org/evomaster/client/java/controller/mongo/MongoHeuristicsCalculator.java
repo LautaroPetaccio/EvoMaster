@@ -335,10 +335,7 @@ public class MongoHeuristicsCalculator {
             actualValue = null;
         }
 
-        return computeHeuristicComparisonNullableValues(
-                expectedValue,
-                actualValue,
-                SqlExpressionEvaluator.ComparisonOperatorType.EQUALS_TO);
+        return computeHeuristicForMatchedValue(expectedValue, actualValue);
     }
 
     private Truthness computeHeuristicComparisonNullableValues(Object expectedValue, Object actualValue, SqlExpressionEvaluator.ComparisonOperatorType comparisonOperatorType) {
@@ -392,10 +389,7 @@ public class MongoHeuristicsCalculator {
         } else {
             actualValue = null;
         }
-        return computeHeuristicComparisonNullableValues(
-                expectedValue,
-                actualValue,
-                SqlExpressionEvaluator.ComparisonOperatorType.NOT_EQUALS_TO);
+        return computeHeuristicForMatchedValue(expectedValue, actualValue).invert();
     }
 
 
