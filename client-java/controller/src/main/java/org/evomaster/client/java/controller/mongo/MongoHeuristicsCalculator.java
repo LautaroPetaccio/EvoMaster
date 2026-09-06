@@ -19,6 +19,7 @@ import static org.evomaster.client.java.distance.heuristics.TruthnessUtils.*;
 import static org.evomaster.client.java.sql.heuristic.ConversionHelper.convertToInstant;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.StreamSupport;
@@ -228,11 +229,14 @@ public class MongoHeuristicsCalculator {
     private Truthness computeHeuristicComparisonNonNullValues(Object actualValue, Object expectedValue, SqlExpressionEvaluator.ComparisonOperatorType comparisonOperatorType) {
         Objects.requireNonNull(actualValue);
         Objects.requireNonNull(expectedValue);
-        if (!isTypeSupportedForComparison(actualValue)) {
-            throw new IllegalArgumentException("Unsupported type: " + actualValue.getClass().getName());
-        }
-        if (!isTypeSupportedForComparison(expectedValue)) {
-            throw new IllegalArgumentException("Unsupported type: " + expectedValue.getClass().getName());
+        if (!isTypeSupportedForComparison(actualValue) || !isTypeSupportedForComparison(expectedValue)) {
+            /*
+                A value of a type this calculator cannot compare, eg a sub-document. MongoDB does
+                not fail on those, it simply does not match them, so neither should we: throwing
+                here would escape all the way out of the heuristics computation for the action.
+                They are handled like any other pair of incomparable values, see below.
+             */
+            return incomparableValues(comparisonOperatorType);
         }
 
         final Truthness truthnessOfComparison;
@@ -274,19 +278,23 @@ public class MongoHeuristicsCalculator {
             truthnessOfComparison = SqlExpressionEvaluator.calculateTruthnessForStringComparison(actualString, expectedString, comparisonOperatorType);
 
         } else {
-            /*
-                Both types are supported, but no comparison logic is defined for this combination,
-                ie the two values are of different, mutually incomparable BSON types.
-                MongoDB considers such values to be different from each other: an equality check is
-                then false, but an inequality check is true. Ordering comparisons do not match across
-                different BSON types either, so those stay false as well.
-             */
-            truthnessOfComparison =
-                    comparisonOperatorType == SqlExpressionEvaluator.ComparisonOperatorType.NOT_EQUALS_TO
-                            ? TRUE_C
-                            : C_FALSE;
+            // no comparison logic is defined for this combination of types
+            truthnessOfComparison = incomparableValues(comparisonOperatorType);
         }
         return truthnessOfComparison;
+    }
+
+    /**
+     * The score of a comparison between two values that cannot be compared with each other,
+     * either because they are of different BSON types or because this calculator has no
+     * comparison logic for them. MongoDB considers such values to be different from each other:
+     * an equality check is then false, but an inequality check is true. Ordering comparisons do
+     * not match across different BSON types either, so those stay false as well.
+     */
+    private static Truthness incomparableValues(SqlExpressionEvaluator.ComparisonOperatorType comparisonOperatorType) {
+        return comparisonOperatorType == SqlExpressionEvaluator.ComparisonOperatorType.NOT_EQUALS_TO
+                ? TRUE_C
+                : C_FALSE;
     }
 
     private static int toIntValue(Boolean actualValue) {
@@ -403,11 +411,11 @@ public class MongoHeuristicsCalculator {
             return C_FALSE;
         } else {
             Object actualValue = getValue(document, fieldName);
-            return computeHeuristicComparisonNullableValues(
-                    expectedValue,
-                    actualValue,
-                    SqlExpressionEvaluator.ComparisonOperatorType.GREATER_THAN);
-
+            return computeHeuristicOnFieldValue(actualValue,
+                    value -> computeHeuristicComparisonNullableValues(
+                            expectedValue,
+                            value,
+                            SqlExpressionEvaluator.ComparisonOperatorType.GREATER_THAN));
         }
     }
 
@@ -421,11 +429,11 @@ public class MongoHeuristicsCalculator {
             return C_FALSE;
         } else {
             Object actualValue = getValue(document, fieldName);
-            return computeHeuristicComparisonNullableValues(
-                    expectedValue,
-                    actualValue,
-                    SqlExpressionEvaluator.ComparisonOperatorType.GREATER_THAN_EQUALS);
-
+            return computeHeuristicOnFieldValue(actualValue,
+                    value -> computeHeuristicComparisonNullableValues(
+                            expectedValue,
+                            value,
+                            SqlExpressionEvaluator.ComparisonOperatorType.GREATER_THAN_EQUALS));
         }
     }
 
@@ -439,10 +447,11 @@ public class MongoHeuristicsCalculator {
             return C_FALSE;
         } else {
             Object actualValue = getValue(document, fieldName);
-            return computeHeuristicComparisonNullableValues(
-                    expectedValue,
-                    actualValue,
-                    SqlExpressionEvaluator.ComparisonOperatorType.MINOR_THAN);
+            return computeHeuristicOnFieldValue(actualValue,
+                    value -> computeHeuristicComparisonNullableValues(
+                            expectedValue,
+                            value,
+                            SqlExpressionEvaluator.ComparisonOperatorType.MINOR_THAN));
         }
     }
 
@@ -456,11 +465,11 @@ public class MongoHeuristicsCalculator {
             return C_FALSE;
         } else {
             Object actualValue = getValue(document, fieldName);
-            return computeHeuristicComparisonNullableValues(
-                    expectedValue,
-                    actualValue,
-                    SqlExpressionEvaluator.ComparisonOperatorType.MINOR_THAN_EQUALS);
-
+            return computeHeuristicOnFieldValue(actualValue,
+                    value -> computeHeuristicComparisonNullableValues(
+                            expectedValue,
+                            value,
+                            SqlExpressionEvaluator.ComparisonOperatorType.MINOR_THAN_EQUALS));
         }
     }
 
@@ -582,24 +591,36 @@ public class MongoHeuristicsCalculator {
      * @return a Truthness object representing how close the field is to holding the expected value
      */
     private Truthness computeHeuristicForMatchedValue(Object expectedValue, Object actualValue) {
+        return computeHeuristicOnFieldValue(actualValue,
+                value -> computeHeuristicComparisonNullableValues(expectedValue, value,
+                        SqlExpressionEvaluator.ComparisonOperatorType.EQUALS_TO));
+    }
 
-        Truthness wholeValue = computeHeuristicComparisonNullableValues(expectedValue, actualValue,
-                SqlExpressionEvaluator.ComparisonOperatorType.EQUALS_TO);
+    /**
+     * Scores a condition on a field, following MongoDB's rule that a field holding an array
+     * satisfies a condition when the array itself does, or when any one of its elements does.
+     * The rule applies to every condition expressed on a field, not only to equality: for
+     * example {"a": [1,2,3]} satisfies {"$gt": 2}, because one of its elements does.
+     * Keeping the array itself among the options is also what makes an empty array work: it
+     * holds no element to score, but it can still satisfy the condition on its own.
+     *
+     * @param actualValue  the value held by the field in the document, possibly an array or null
+     * @param scoreOfValue the score of the condition on a single value
+     * @return a Truthness object representing how close the field is to satisfying the condition
+     */
+    private Truthness computeHeuristicOnFieldValue(Object actualValue, Function<Object, Truthness> scoreOfValue) {
+
+        Truthness wholeValue = scoreOfValue.apply(actualValue);
 
         if (!(actualValue instanceof List<?>)) {
             return wholeValue;
         }
 
-        /*
-            The array as a whole is one of the options, which is also what makes an empty array
-            work: it holds no element to compare, but it can still be equal to the expected value.
-         */
         List<?> actualValueList = (List<?>) actualValue;
         Truthness[] options = new Truthness[actualValueList.size() + 1];
         options[0] = wholeValue;
         for (int i = 0; i < actualValueList.size(); i++) {
-            options[i + 1] = computeHeuristicComparisonNullableValues(expectedValue,
-                    actualValueList.get(i), SqlExpressionEvaluator.ComparisonOperatorType.EQUALS_TO);
+            options[i + 1] = scoreOfValue.apply(actualValueList.get(i));
         }
         return buildOrAggregationTruthness(options);
     }
@@ -720,13 +741,13 @@ public class MongoHeuristicsCalculator {
             actualValue = getValue(document, fieldName);
         }
 
-        if (actualValue == null || !(actualValue instanceof Number)) {
-            return C_FALSE;
-        } else {
-            long actualRemainder = ((Number) actualValue).longValue() % divisor;
-            Truthness res = getEqualityTruthness(actualRemainder, expectedRemainder);
-            return buildSafeScaledTruthness(res);
-        }
+        return computeHeuristicOnFieldValue(actualValue, value -> {
+            if (!(value instanceof Number)) {
+                return C_FALSE;
+            }
+            long actualRemainder = ((Number) value).longValue() % divisor;
+            return buildSafeScaledTruthness(getEqualityTruthness(actualRemainder, expectedRemainder));
+        });
     }
 
     private Truthness computeHeuristic(BitsOperation operation, Object document) {
@@ -738,7 +759,20 @@ public class MongoHeuristicsCalculator {
         }
 
         Object actualValue = getValue(document, fieldName);
+        return computeHeuristicOnFieldValue(actualValue, value -> scoreOfBits(operation, value));
+    }
+
+    private Truthness scoreOfBits(BitsOperation operation, Object actualValue) {
         if (!(actualValue instanceof Number)) {
+            return C_FALSE;
+        }
+
+        /*
+            A bitwise operator only applies to a number that is an integer: 3.0 is matched,
+            whereas 3.5 is not, rather than being truncated to 3.
+         */
+        double asDouble = ((Number) actualValue).doubleValue();
+        if (Double.isNaN(asDouble) || Double.isInfinite(asDouble) || asDouble != Math.floor(asDouble)) {
             return C_FALSE;
         }
 

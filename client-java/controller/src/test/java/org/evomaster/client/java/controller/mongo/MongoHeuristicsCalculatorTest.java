@@ -315,6 +315,87 @@ public class MongoHeuristicsCalculatorTest {
     }
 
     @Test
+    public void testValuesThatCannotBeComparedDoNotThrow() {
+        /*
+            A sub-document cannot be compared by this calculator. MongoDB does not fail on such a
+            query, it simply does not match, so the score must be false rather than an exception.
+            Arrays of sub-documents are the common case, since every element is scored.
+         */
+        Document subDocument = new Document().append("a", new Document().append("x", 1));
+        Document arrayOfSubDocuments = new Document().append("a",
+                new ArrayList<>(Arrays.asList(new Document().append("x", 1))));
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.eq("a", 5)), subDocument).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.gt("a", 2)), subDocument).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.gt("a", 2)), arrayOfSubDocuments).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.in("a", Arrays.asList(1, 5))), arrayOfSubDocuments).isFalse());
+
+        // being different from a number is exactly what makes the inequality hold
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.ne("a", 5)), subDocument).isTrue());
+    }
+
+    @Test
+    public void testOrderingOperatorsMatchingAnElementOfAnArrayField() {
+        // a field holding an array satisfies a comparison when any of its elements does
+        Document doc = new Document().append("a", new ArrayList<>(Arrays.asList(1, 2, 3)));
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.gt("a", 2)), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.gte("a", 3)), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.lt("a", 2)), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.lte("a", 1)), doc).isTrue());
+
+        // no element is greater than 3, so the condition does not hold
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(Filters.gt("a", 3)), doc).isFalse());
+    }
+
+    @Test
+    public void testOrderingOperatorsOnAnEmptyArrayField() {
+        Document doc = new Document().append("a", Collections.emptyList());
+        assertTrue(new MongoHeuristicsCalculator()
+                .computeHeuristicDocument(convertToDocument(Filters.gt("a", 2)), doc).isFalse());
+    }
+
+    @Test
+    public void testModMatchingAnElementOfAnArrayField() {
+        Document doc = new Document().append("a", new ArrayList<>(Arrays.asList(1, 2, 3)));
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.mod("a", 2L, 1L)), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.mod("a", 10L, 7L)), doc).isFalse());
+    }
+
+    @Test
+    public void testBitsMatchingAnElementOfAnArrayField() {
+        Document doc = new Document().append("a", new ArrayList<>(Arrays.asList(1, 2, 3)));
+        assertTrue(new MongoHeuristicsCalculator()
+                .computeHeuristicDocument(convertToDocument(Filters.bitsAllSet("a", 1L)), doc).isTrue());
+    }
+
+    @Test
+    public void testBitsDoesNotMatchANonIntegralNumber() {
+        // 3.0 is an integer and is matched, whereas 3.5 is not truncated to 3
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+        Bson query = Filters.bitsAllSet("a", 1L);
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(query),
+                new Document().append("a", 3.0d)).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(query),
+                new Document().append("a", 3.5d)).isFalse());
+    }
+
+    @Test
+    public void testBitsWithAnIntegerBitmask() {
+        // the same query, with the bitmask arriving as an Integer rather than a Long
+        Document doc = new Document().append("a", 5);
+        Document query = new Document().append("a", new Document().append("$bitsAllSet", 1));
+        assertTrue(new MongoHeuristicsCalculator().computeHeuristicDocument(query, doc).isTrue());
+    }
+
+    @Test
     public void testAllOnScalarField() {
         // a scalar matches a $all that only lists values equal to it
         Document doc = new Document().append("tag", "a");
