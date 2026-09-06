@@ -498,8 +498,8 @@ public class MongoHeuristicsCalculator {
     /**
      * Computes the heuristic score for the membership of a field's value in a list of expected
      * values, ie the condition shared by {"f",{"$in": [...]}} and, negated, by
-     * {"f",{"$nin": [...]}}. When the field holds an array, MongoDB checks each of its elements,
-     * and the condition holds if any of them is one of the expected values.
+     * {"f",{"$nin": [...]}}. The condition holds when the field matches any one of the expected
+     * values, in the sense of {@link #computeHeuristicForMatchedValue(Object, Object)}.
      *
      * @param fieldName      the name of the field the query is about
      * @param expectedValues the values the query lists as candidates
@@ -524,27 +524,9 @@ public class MongoHeuristicsCalculator {
             actualValue = null;
         }
 
-        if (actualValue instanceof List<?>) {
-            List<?> actualValueList = (List<?>) actualValue;
-            if (actualValueList.isEmpty()) {
-                // an empty array holds none of the expected values
-                return C_FALSE;
-            }
-            return buildOrAggregationTruthness(actualValueList.stream()
-                    .map(value -> computeHeuristic(value, expectedValues))
-                    .toArray(Truthness[]::new));
-        } else {
-            return computeHeuristic(actualValue, expectedValues);
-        }
-    }
-
-    private Truthness computeHeuristic(Object actualValue, List<?> expectedValueList) {
-        Objects.requireNonNull(expectedValueList);
-
-        Truthness res = buildOrAggregationTruthness(expectedValueList.stream()
-                .map(expectedValue -> computeHeuristicComparisonNullableValues(expectedValue, actualValue, SqlExpressionEvaluator.ComparisonOperatorType.EQUALS_TO))
+        return buildOrAggregationTruthness(expectedValues.stream()
+                .map(expectedValue -> computeHeuristicForMatchedValue(expectedValue, actualValue))
                 .toArray(Truthness[]::new));
-        return res;
     }
 
     private Truthness computeHeuristic(NotInOperation<?> operation, Object document) {
@@ -565,10 +547,11 @@ public class MongoHeuristicsCalculator {
 
     /**
      * Computes the heuristic score for a {"f",{"$all": [v1, ..., vn] }} query.
-     * The condition holds when the array held by "f" contains every one of the expected values,
-     * so the score is an AND aggregation over the expected values, each of which is scored by an
-     * OR aggregation over the elements of the array. Note the direction: extra elements in the
-     * document are irrelevant, whereas a missing expected value makes the condition false.
+     * The condition holds when "f" matches every one of the expected values, so the score is an
+     * AND aggregation over them. Note the direction: extra elements in the document are
+     * irrelevant, whereas a missing expected value makes the condition false.
+     * The field does not have to hold an array: a scalar matches a $all listing only values
+     * equal to it, which is why {"f": "a"} is matched by {"$all": ["a"]}.
      *
      * @param operation the {"f",{"$all": [...]}} query encapsulated as an AllOperation
      * @param document  the BSON document to evaluate the heuristic score against
@@ -584,40 +567,47 @@ public class MongoHeuristicsCalculator {
         } else if (expectedValues.isEmpty()) {
             return C_FALSE;
         } else {
-            Object actualValues = getValue(document, fieldName);
-            if (actualValues == null || !(actualValues instanceof List<?>)) {
-                return C_FALSE;
-            } else {
-                List<?> actualValuesList = (List<?>) actualValues;
-                if (actualValuesList.isEmpty()) {
-                    return C_FALSE;
-                } else {
-                    Truthness res = buildAndAggregationTruthness(expectedValues
-                            .stream()
-                            .map(expectedValue ->
-                                    computeHeuristicForContainedValue(expectedValue, actualValuesList))
-                            .toArray(Truthness[]::new));
-                    return buildSafeScaledTruthness(res);
-                }
-            }
+            Object actualValue = getValue(document, fieldName);
+            Truthness res = buildAndAggregationTruthness(expectedValues
+                    .stream()
+                    .map(expectedValue -> computeHeuristicForMatchedValue(expectedValue, actualValue))
+                    .toArray(Truthness[]::new));
+            return buildSafeScaledTruthness(res);
         }
     }
 
     /**
-     * Computes the heuristic score for the presence of a single expected value inside the array
-     * held by the queried field, ie an OR aggregation over the elements of that array.
+     * Computes the heuristic score for MongoDB's matching of a field against a single value,
+     * ie the condition that the field holds that value. The field matches when its own value is
+     * the expected one, and also, if it holds an array, when any element of that array is.
+     * Both readings apply at once: {"f": ["a","b"]} is matched both by the value ["a","b"] and
+     * by the value "a".
      *
-     * @param expectedValue a value that a {"f",{"$all": [...]}} query requires to be present
-     * @param actualValues  the non-empty array held by the field "f" in the document
-     * @return a Truthness object representing how close the array is to containing the expected value
+     * @param expectedValue the value the query requires the field to hold
+     * @param actualValue   the value held by the field in the document, possibly an array or null
+     * @return a Truthness object representing how close the field is to holding the expected value
      */
-    private Truthness computeHeuristicForContainedValue(Object expectedValue, List<?> actualValues) {
-        Objects.requireNonNull(actualValues);
+    private Truthness computeHeuristicForMatchedValue(Object expectedValue, Object actualValue) {
 
-        return buildOrAggregationTruthness(actualValues.stream()
-                .map(actualValue -> computeHeuristicComparisonNullableValues(expectedValue, actualValue,
-                        SqlExpressionEvaluator.ComparisonOperatorType.EQUALS_TO))
-                .toArray(Truthness[]::new));
+        Truthness wholeValue = computeHeuristicComparisonNullableValues(expectedValue, actualValue,
+                SqlExpressionEvaluator.ComparisonOperatorType.EQUALS_TO);
+
+        if (!(actualValue instanceof List<?>)) {
+            return wholeValue;
+        }
+
+        /*
+            The array as a whole is one of the options, which is also what makes an empty array
+            work: it holds no element to compare, but it can still be equal to the expected value.
+         */
+        List<?> actualValueList = (List<?>) actualValue;
+        Truthness[] options = new Truthness[actualValueList.size() + 1];
+        options[0] = wholeValue;
+        for (int i = 0; i < actualValueList.size(); i++) {
+            options[i + 1] = computeHeuristicComparisonNullableValues(expectedValue,
+                    actualValueList.get(i), SqlExpressionEvaluator.ComparisonOperatorType.EQUALS_TO);
+        }
+        return buildOrAggregationTruthness(options);
     }
 
     private static Truthness buildSafeScaledTruthness(Truthness truthness) {
@@ -969,6 +959,9 @@ public class MongoHeuristicsCalculator {
         final Truthness truthness;
         if (actualList.size() != expectedList.size()) {
             truthness = C_FALSE;
+        } else if (actualList.isEmpty()) {
+            // two empty arrays are equal, and there is no element to aggregate over
+            truthness = TRUE_C;
         } else {
             Truthness[] arrayOfTruthnesses = new Truthness[actualList.size()];
             for (int i = 0; i < actualList.size(); i++) {

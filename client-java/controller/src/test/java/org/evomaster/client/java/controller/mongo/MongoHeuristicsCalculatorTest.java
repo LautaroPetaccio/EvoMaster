@@ -315,6 +315,74 @@ public class MongoHeuristicsCalculatorTest {
     }
 
     @Test
+    public void testAllOnScalarField() {
+        // a scalar matches a $all that only lists values equal to it
+        Document doc = new Document().append("tag", "a");
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.all("tag", Arrays.asList("a"))), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.all("tag", Arrays.asList("a", "a"))), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.all("tag", Arrays.asList("a", "b"))), doc).isFalse());
+        assertTrue(calculator.computeHeuristicDocument(
+                convertToDocument(Filters.all("tag", Arrays.asList("b"))), doc).isFalse());
+    }
+
+    @Test
+    public void testAllMatchingTheArrayAsAWhole() {
+        // the expected value can be the array itself, not only one of its elements
+        Document doc = new Document().append("tags", new ArrayList<>(Arrays.asList("a", "b")));
+        Bson query = Filters.all("tags", Arrays.asList(Arrays.asList("a", "b")));
+        assertTrue(new MongoHeuristicsCalculator()
+                .computeHeuristicDocument(convertToDocument(query), doc).isTrue());
+    }
+
+    @Test
+    public void testInMatchingTheArrayAsAWhole() {
+        Document doc = new Document().append("tags", new ArrayList<>(Arrays.asList("a", "b")));
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        Bson sameOrder = Filters.in("tags", Arrays.asList(Arrays.asList("a", "b")));
+        Bson otherOrder = Filters.in("tags", Arrays.asList(Arrays.asList("b", "a")));
+
+        // an array is equal to another one only when their elements are in the same order
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(sameOrder), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(otherOrder), doc).isFalse());
+    }
+
+    @Test
+    public void testNotInMatchingTheArrayAsAWhole() {
+        Document doc = new Document().append("tags", new ArrayList<>(Arrays.asList("a", "b")));
+        Bson query = Filters.nin("tags", Arrays.asList(Arrays.asList("a", "b")));
+        assertTrue(new MongoHeuristicsCalculator()
+                .computeHeuristicDocument(convertToDocument(query), doc).isFalse());
+    }
+
+    @Test
+    public void testInOnEmptyArrayFieldMatchingTheEmptyArray() {
+        // the empty array holds no element, but it is still equal to the empty array
+        Document doc = new Document().append("tags", Collections.emptyList());
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        Bson in = Filters.in("tags", Arrays.asList(Collections.emptyList()));
+        Bson nin = Filters.nin("tags", Arrays.asList(Collections.emptyList()));
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(in), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(nin), doc).isFalse());
+    }
+
+    @Test
+    public void testInMatchingAnArrayElementThatIsItselfAnArray() {
+        Document doc = new Document().append("tags",
+                new ArrayList<>(Arrays.asList(Arrays.asList("a", "b"), "c")));
+        Bson query = Filters.in("tags", Arrays.asList(Arrays.asList("a", "b")));
+        assertTrue(new MongoHeuristicsCalculator()
+                .computeHeuristicDocument(convertToDocument(query), doc).isTrue());
+    }
+
+    @Test
     public void testAllMatchesWhenDocumentArrayHasExtraElements() {
         // $all only requires the expected values to be present; extra elements are irrelevant
         Document doc = new Document().append("employees", new ArrayList<>(Arrays.asList(1, 5, 6)));
@@ -1115,6 +1183,19 @@ public class MongoHeuristicsCalculatorTest {
         Truthness distanceNotMatch = new MongoHeuristicsCalculator().computeHeuristicDocument(convertToDocument(bsonFalse), doc);
         assertTrue(distanceMatch.isTrue());
         assertTrue(distanceNotMatch.isFalse());
+    }
+
+    @Test
+    public void testEqualsBetweenEmptyLists() {
+        // two empty arrays are equal; comparing them used to have no element to aggregate over
+        Document doc = new Document().append("employees", Collections.emptyList());
+        MongoHeuristicsCalculator calculator = new MongoHeuristicsCalculator();
+
+        Bson equals = Filters.eq("employees", Collections.emptyList());
+        Bson notEquals = Filters.ne("employees", Collections.emptyList());
+
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(equals), doc).isTrue());
+        assertTrue(calculator.computeHeuristicDocument(convertToDocument(notEquals), doc).isFalse());
     }
 
     @Test
