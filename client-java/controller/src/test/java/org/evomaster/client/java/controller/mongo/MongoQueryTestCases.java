@@ -192,6 +192,14 @@ public final class MongoQueryTestCases {
                 geometry("LineString", "[[1,1],[2,2]]"), false);
         add(cases, "point on polygon corner intersects control", geo("$geoIntersects", unitSquare),
                 geometry("Point", "[1,1]"), true);
+
+        Document equatorLine = geometry("LineString", "[[0,0],[1,0]]");
+        add(cases, "point within rounding distance of a line intersects", geo("$geoIntersects", equatorLine),
+                geometry("Point", "[0.5,1e-17]"), true);
+        add(cases, "point within rounding distance of a polygon edge is contained", geo("$geoWithin",
+                geometry("Polygon", "[[[0,0],[10,0],[10,10],[0,10],[0,0]]]")), geometry("Point", "[-1e-17,5]"), true);
+        add(cases, "point a small distance off a line control", geo("$geoIntersects", equatorLine),
+                geometry("Point", "[0.5,1e-5]"), false);
         return cases.stream();
     }
 
@@ -219,6 +227,8 @@ public final class MongoQueryTestCases {
                 legacy("$centerSphere", "[[0,60],0.1]"), geometry("Point", "[10,60]"), true);
         add(cases, "centerSphere excludes point beyond great circle radius control",
                 legacy("$centerSphere", "[[0,60],0.1]"), geometry("Point", "[13,60]"), false);
+        add(cases, "centerSphere radius beyond coordinate range contains distant point",
+                legacy("$centerSphere", "[[0,0],3]"), geometry("Point", "[100,0]"), true);
         add(cases, "center crossing the antimeridian keeps its interior", legacy("$center", "[[179,0],2]"),
                 geometry("Point", "[179.5,0]"), true);
         add(cases, "box with planar coordinates beyond longitude range", legacy("$box", "[[0,0],[300,80]]"),
