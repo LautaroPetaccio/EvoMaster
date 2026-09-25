@@ -15,7 +15,8 @@ public final class MongoQueryTestCases {
     }
 
     public static Stream<Case> scenarios() {
-        return Stream.of(geometryCases(), queryCases(), bsonCases()).flatMap(cases -> cases);
+        return Stream.of(geometryCases(), geometryPredicateCases(), geometryQueryFormCases(),
+                storedGeometryCases(), queryCases(), bsonCases()).flatMap(cases -> cases);
     }
 
     private static Stream<Case> geometryCases() {
@@ -152,6 +153,123 @@ public final class MongoQueryTestCases {
         add(cases, "tiny segment midpoint remains an intersection",
                 geo("$geoIntersects", geometry("LineString", "[[0,0],[1e-170,0]]")),
                 geometry("Point", "[5e-171,0]"), true);
+        return cases.stream();
+    }
+
+    private static Stream<Case> geometryPredicateCases() {
+        List<Case> cases = new ArrayList<>();
+
+        Document highLatitudeBox = geometry("Polygon", "[[[-10,50],[10,50],[10,60],[-10,60],[-10,50]]]");
+        add(cases, "polygon edge between parallel vertices bulges toward the pole", geo("$geoWithin", highLatitudeBox),
+                geometry("Point", "[0,60.3]"), true);
+        add(cases, "point just north of southern parallel vertices lies outside polygon", geo("$geoWithin", highLatitudeBox),
+                geometry("Point", "[0,50.1]"), false);
+        add(cases, "point beyond northern edge bulge lies outside polygon control", geo("$geoWithin", highLatitudeBox),
+                geometry("Point", "[0,61]"), false);
+        add(cases, "line crossing only the bulge of a high latitude edge intersects it",
+                geo("$geoIntersects", geometry("LineString", "[[-10,60],[10,60]]")),
+                geometry("LineString", "[[0,60.2],[0,60.5]]"), true);
+
+        Document antimeridianLine = geometry("LineString", "[[179,0],[-179,0]]");
+        add(cases, "short antimeridian line does not reach the prime meridian", geo("$geoIntersects", antimeridianLine),
+                geometry("Point", "[0,0]"), false);
+        add(cases, "short antimeridian line crosses the 180th meridian", geo("$geoIntersects", antimeridianLine),
+                geometry("LineString", "[[180,-1],[180,1]]"), true);
+        add(cases, "antimeridian polygon contains point on the 180th meridian", geo("$geoWithin",
+                geometry("Polygon", "[[[179,-1],[-179,-1],[-179,1],[179,1],[179,-1]]]")),
+                geometry("Point", "[180,0]"), true);
+
+        Document polarCap = geometry("Polygon", "[[[0,80],[90,80],[180,80],[-90,80],[0,80]]]");
+        add(cases, "ring around the pole contains nearby polar point", geo("$geoWithin", polarCap),
+                geometry("Point", "[45,85]"), true);
+        add(cases, "ring around the pole excludes lower latitude point control", geo("$geoWithin", polarCap),
+                geometry("Point", "[45,75]"), false);
+
+        Document unitSquare = geometry("Polygon", "[[[0,0],[1,0],[1,1],[0,1],[0,0]]]");
+        add(cases, "polygons sharing only a corner do not intersect", geo("$geoIntersects", unitSquare),
+                geometry("Polygon", "[[[1,1],[2,1],[2,2],[1,2],[1,1]]]"), false);
+        add(cases, "line touching polygon only at a corner does not intersect", geo("$geoIntersects", unitSquare),
+                geometry("LineString", "[[1,1],[2,2]]"), false);
+        add(cases, "point on polygon corner intersects control", geo("$geoIntersects", unitSquare),
+                geometry("Point", "[1,1]"), true);
+        return cases.stream();
+    }
+
+    private static Stream<Case> geometryQueryFormCases() {
+        List<Case> cases = new ArrayList<>();
+        Document square = geometry("Polygon", "[[[0,0],[10,0],[10,10],[0,10],[0,0]]]");
+        Document inside = geometry("Point", "[1,1]");
+        Document outside = geometry("Point", "[20,20]");
+
+        Document strictWinding = Document.parse("{type:'Polygon',coordinates:[[[0,0],[0,10],[10,10],[10,0],[0,0]]],"
+                + "crs:{type:'name',properties:{name:'urn:x-mongodb:crs:strictwinding:EPSG:4326'}}}");
+        add(cases, "strict winding clockwise ring contains its exterior", geo("$geoWithin", strictWinding), outside, true);
+        add(cases, "strict winding clockwise ring excludes enclosed point", geo("$geoWithin", strictWinding),
+                geometry("Point", "[5,5]"), false);
+
+        add(cases, "$geoIntersects accepts Point query geometry", geo("$geoIntersects", inside), square, true);
+        add(cases, "$geoIntersects Point query rejects disjoint polygon", geo("$geoIntersects", outside), square, false);
+        add(cases, "$geoIntersects accepts legacy pair query geometry",
+                new Document("loc", new Document("$geoIntersects", new Document("$geometry", Arrays.asList(1, 1)))),
+                inside, true);
+
+        add(cases, "center accepts point between approximating vertices", legacy("$center", "[[0,0],10]"),
+                geometry("Point", "[9.9319,0.9782]"), true);
+        add(cases, "centerSphere radius is a great circle distance at high latitude",
+                legacy("$centerSphere", "[[0,60],0.1]"), geometry("Point", "[10,60]"), true);
+        add(cases, "centerSphere excludes point beyond great circle radius control",
+                legacy("$centerSphere", "[[0,60],0.1]"), geometry("Point", "[13,60]"), false);
+        add(cases, "center crossing the antimeridian keeps its interior", legacy("$center", "[[179,0],2]"),
+                geometry("Point", "[179.5,0]"), true);
+        add(cases, "box with planar coordinates beyond longitude range", legacy("$box", "[[0,0],[300,80]]"),
+                geometry("Point", "[100,10]"), true);
+        add(cases, "reversed box corners describe the same box control", legacy("$box", "[[2,2],[0,0]]"), inside, true);
+        add(cases, "meridian and equator edges include boundary point control", geo("$geoWithin", square),
+                geometry("Point", "[10,5]"), true);
+
+        cases.add(new Case("geoWithin inside nor accepts non-geometry value control",
+                new Document("$nor", Arrays.asList(geo("$geoWithin", square))), new Document("loc", "abc"), true));
+        cases.add(new Case("geoWithin inside elemMatch matches any subdocument control",
+                Document.parse("{a:{$elemMatch:" + geo("$geoWithin", square).toJson() + "}}"),
+                new Document("a", Arrays.asList(new Document("loc", outside), new Document("loc", inside))), true));
+        return cases.stream();
+    }
+
+    private static Stream<Case> storedGeometryCases() {
+        List<Case> cases = new ArrayList<>();
+        Document square = geometry("Polygon", "[[[0,0],[10,0],[10,10],[0,10],[0,0]]]");
+        Document point = geometry("Point", "[1,1]");
+
+        add(cases, "$geoIntersects matches stored legacy coordinate pair", geo("$geoIntersects", square),
+                Arrays.asList(1, 1), true);
+        add(cases, "$geoIntersects matches stored legacy coordinate document", geo("$geoIntersects", square),
+                Document.parse("{lng:1,lat:1}"), true);
+        add(cases, "$geoWithin geometry matches stored legacy coordinate pair", geo("$geoWithin", square),
+                Arrays.asList(1, 1), true);
+        add(cases, "$geoIntersects rejects outside stored legacy coordinate pair control", geo("$geoIntersects", square),
+                Arrays.asList(20, 20), false);
+
+        add(cases, "stored Point accepts altitude", geo("$geoWithin", square), geometry("Point", "[1,1,5]"), true);
+        add(cases, "stored nested GeometryCollection is not a geometry", geo("$geoIntersects", square),
+                new Document("type", "GeometryCollection").append("geometries", Arrays.asList(
+                        new Document("type", "GeometryCollection").append("geometries", Arrays.asList(point)))),
+                false);
+
+        add(cases, "stored self-intersecting ring is not a geometry", geo("$geoIntersects", square),
+                geometry("Polygon", "[[[1,1],[3,3],[3,1],[1,3],[1,1]]]"), false);
+        add(cases, "stored ring with repeated vertex is not a geometry", geo("$geoIntersects", square),
+                geometry("Polygon", "[[[1,1],[3,1],[2,2],[3,3],[1,3],[2,2],[1,1]]]"), false);
+        add(cases, "stored hole outside shell is not a geometry", geo("$geoIntersects", square),
+                geometry("Polygon", "[[[1,1],[3,1],[3,3],[1,3],[1,1]],[[5,5],[6,5],[6,6],[5,6],[5,5]]]"), false);
+        add(cases, "stored hole crossing shell is not a geometry", geo("$geoIntersects", square),
+                geometry("Polygon", "[[[1,1],[3,1],[3,3],[1,3],[1,1]],[[2,2],[4,2],[4,4],[2,4],[2,2]]]"), false);
+        add(cases, "stored hole inside shell control", geo("$geoIntersects", square),
+                geometry("Polygon", "[[[1,1],[5,1],[5,5],[1,5],[1,1]],[[2,2],[3,2],[3,3],[2,3],[2,2]]]"), true);
+
+        add(cases, "document without type never matches geoWithin control", geo("$geoWithin", square),
+                Document.parse("{coordinates:[1,1]}"), false);
+        cases.add(new Case("missing field never matches geoWithin control", geo("$geoWithin", square),
+                new Document("other", 1), false));
         return cases.stream();
     }
 
